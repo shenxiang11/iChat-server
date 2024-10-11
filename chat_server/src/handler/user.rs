@@ -1,76 +1,59 @@
-use std::sync::Arc;
 use axum::response::IntoResponse;
 use axum::{Json, Router};
-use axum::routing::{get, post};
-use redis::Connection;
+use axum::extract::State;
+use axum::routing::{post};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use crate::app_state::AppState;
 use crate::error::AppError;
-use crate::repository::UserRepository;
 
-pub(crate) struct UserHandler {
-    repo: UserRepository,
+pub(crate) fn register_routes() -> Router<AppState> {
+    Router::new()
+        .route("/email_code", post(send_email_code))
+        .route("/signin", post(signin))
+        .route("/signup", post(signup))
 }
 
-impl UserHandler {
-    pub(crate) fn new(pool: PgPool) -> Arc<Self> {
-        Arc::new(Self {
-            repo: UserRepository::new(pool),
-        })
+pub(crate) async fn send_email_code(
+    State(state): State<AppState>,
+    Json(input): Json<SendEmail>,
+) -> Result<impl IntoResponse, AppError> {
+    let user = state.user_repo.find_by_email(&input.email).await?;
+
+    if user.is_some() {
+        return Err(AppError::EmailAlreadyExists(input.email));
     }
 
-    pub(crate) fn register_routes(self: Arc<Self>) -> Router {
-        Router::new()
-            .route("/email_code", post({
-                let mut h = self.clone();
-                move |body| async move {
-                    h.send_email_code(body).await
-                }
-            }))
-            .route("/signin", post({
-                let h = self.clone();
-                move |body| async move {
-                    h.signin(body).await
-                }
-            }))
-            .route("/signup", get({
-                let h = self.clone();
-                move |body| async move {
-                    h.signup(body).await
-                }
-            }))
-    }
-
-    pub(crate) async fn send_email_code(
-        &self,
-        Json(input): Json<SendEmail>,
-    ) -> Result<impl IntoResponse, AppError> {
-        let user = self.repo.find_by_email(&input.email).await?;
-
-        if user.is_some() {
-            return Err(AppError::EmailAlreadyExists(input.email));
-        }
-
-        self.repo.send_email_code(&input.email).await?;
-
-        Ok(Json("Email code sent!"))
-    }
-
-    pub(crate) async fn signin(
-        &self,
-        Json(input): Json<CreateUser>,
-    ) -> Result<impl IntoResponse, AppError> {
-        let user = self.repo.create(&input.email, &input.password, &input.fullname).await?;
-        Ok(Json(user))
-    }
-
-    pub(crate) async fn signup(
-        &self,
-        Json(input): Json<SigninUser>,
-    ) -> impl IntoResponse {
-        Json(input)
-    }
+    state.user_repo.send_email_code(&input.email).await?;
+    Ok("Send email code")
 }
+
+pub(crate) async fn signin(
+    State(state): State<AppState>,
+    Json(input): Json<SigninUser>,
+) -> Result<impl IntoResponse, AppError> {
+    Ok("Signin")
+}
+
+pub(crate) async fn signup(
+    State(state): State<AppState>,
+    Json(input): Json<CreateUser>,
+) -> Result<impl IntoResponse, AppError> {
+    let is_code_correct = state.user_repo.verify_email_code(&input.email, &input.code).await?;
+
+    if !is_code_correct {
+        return Err(AppError::EmailCodeIncorrect);
+    }
+
+    let user = state.user_repo.find_by_email(&input.email).await?;
+
+    if user.is_some() {
+        return Err(AppError::EmailAlreadyExists(input.email));
+    }
+
+    let user = state.user_repo.create(&input.email, &input.password, &input.fullname).await?;
+    Ok(Json(user))
+}
+
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct SendEmail {
@@ -80,6 +63,7 @@ struct SendEmail {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct CreateUser {
     email: String,
+    code: String,
     password: String,
     fullname: String,
 }

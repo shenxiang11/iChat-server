@@ -17,7 +17,13 @@ pub(crate) enum AppError {
     SmtpError(String),
 
     #[error("Redis error: {0}")]
-    RedisError(#[from] redis::RedisError),
+    RedisError(#[from] r2d2_redis::redis::RedisError),
+
+    #[error("R2D2 error: {0}")]
+    R2D2Error(#[from] r2d2::Error),
+
+    #[error("Email code incorrect")]
+    EmailCodeIncorrect,
 }
 
 impl IntoResponse for AppError {
@@ -28,6 +34,8 @@ impl IntoResponse for AppError {
             Self::PasswordHashError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::SmtpError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::RedisError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::R2D2Error(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::EmailCodeIncorrect => StatusCode::UNPROCESSABLE_ENTITY,
         };
 
         (status, self.to_string()).into_response()

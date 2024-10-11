@@ -6,7 +6,9 @@ use jwt_simple::reexports::rand;
 use lettre::message::MessageBuilder;
 use lettre::{SmtpTransport, Transport};
 use lettre::transport::smtp::authentication::Credentials;
-use redis::{Commands, Connection};
+use r2d2::Pool;
+use r2d2_redis::RedisConnectionManager;
+use r2d2_redis::redis::Commands;
 use sqlx::PgPool;
 use tracing::log::debug;
 use tracing_subscriber::fmt::format;
@@ -16,13 +18,15 @@ use crate::models::User;
 pub struct UserRepository {
     biz: String,
     pub(crate) pool: PgPool,
+    pub(crate) rdb_pool: Pool<RedisConnectionManager>,
 }
 
 impl UserRepository {
-    pub(crate) fn new(pool: PgPool) -> Self {
+    pub(crate) fn new(pool: PgPool, rdb_pool: Pool<RedisConnectionManager>) -> Self {
         Self {
             biz: "user".to_string(),
             pool,
+            rdb_pool,
         }
     }
 
@@ -35,16 +39,35 @@ impl UserRepository {
     }
 
     pub(crate) async fn send_email_code(&self, email: &str) -> Result<(), AppError> {
-        // 生成6位验证码
+        // generate a random 6-digit code
         let code = rand::random::<u32>() % 1000000;
         debug!("email code: {}", code);
 
-        // redis 里记录验证码，保持 10 分钟
-        // self.rdb.set_ex(format!("{}:{}:{}", self.biz, "email_code", email), code, 600)?;
+        // save it in redis
+        let mut rdb = self.rdb_pool.get()?;
+        rdb.set_ex(format!("{}:{}:{}", self.biz, "email_code", email), code, 600)?;
 
         send_email_code(email, &code.to_string()).await?;
 
         Ok(())
+    }
+
+    pub(crate) async fn verify_email_code(&self, email: &str, code_input: &str) -> Result<bool, AppError> {
+        let mut rdb = self.rdb_pool.get()?;
+        let key = format!("{}:{}:{}", self.biz, "email_code", email);
+        let code: Option<String> = rdb.get(key.clone())?;
+
+        match code {
+            Some(c) => {
+                if c == code_input {
+                    rdb.del(key)?;
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+            None => Ok(false)
+        }
     }
 
     pub(crate) async fn find_by_email(&self, email: &str) -> Result<Option<User>, AppError> {
