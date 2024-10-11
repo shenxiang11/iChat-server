@@ -1,0 +1,130 @@
+use argon2::{Argon2, PasswordHasher};
+use argon2::password_hash::rand_core::OsRng;
+use argon2::password_hash::SaltString;
+use axum::extract::path::ErrorKind::Message;
+use jwt_simple::reexports::rand;
+use lettre::message::MessageBuilder;
+use lettre::{SmtpTransport, Transport};
+use lettre::transport::smtp::authentication::Credentials;
+use redis::{Commands, Connection};
+use sqlx::PgPool;
+use tracing::log::debug;
+use tracing_subscriber::fmt::format;
+use crate::error::AppError;
+use crate::models::User;
+
+pub struct UserRepository {
+    biz: String,
+    pub(crate) pool: PgPool,
+}
+
+impl UserRepository {
+    pub(crate) fn new(pool: PgPool) -> Self {
+        Self {
+            biz: "user".to_string(),
+            pool,
+        }
+    }
+
+    fn find_by_id(&self, id: i32) -> Option<User> {
+        unimplemented!()
+    }
+
+    fn find_by_username(&self, username: &str) -> Option<User> {
+        unimplemented!()
+    }
+
+    pub(crate) async fn send_email_code(&self, email: &str) -> Result<(), AppError> {
+        // 生成6位验证码
+        let code = rand::random::<u32>() % 1000000;
+        debug!("email code: {}", code);
+
+        // redis 里记录验证码，保持 10 分钟
+        // self.rdb.set_ex(format!("{}:{}:{}", self.biz, "email_code", email), code, 600)?;
+
+        send_email_code(email, &code.to_string()).await?;
+
+        Ok(())
+    }
+
+    pub(crate) async fn find_by_email(&self, email: &str) -> Result<Option<User>, AppError> {
+        let user: Option<User> = sqlx::query_as(
+            r#"
+            SELECT id, fullname, email, created_at FROM users WHERE email = $1
+            "#,
+        )
+            .bind(email)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        Ok(user)
+    }
+
+    pub(crate) async fn create(&self, email: &str, password: &str, fullname: &str) -> Result<User, AppError> {
+        let user = self.find_by_email(email).await?;
+
+        if user.is_some() {
+            return Err(AppError::EmailAlreadyExists(email.to_string()));
+        }
+
+        let password_hash = hash_password(password)?;
+
+        let user = sqlx::query_as(
+            r#"
+            INSERT INTO users (email, fullname, password_hash)
+            VALUES ($1, $2, $3)
+            RETURNING *
+            "#,
+        )
+            .bind(email.to_string())
+            .bind(fullname.to_string())
+            .bind(password_hash)
+            .fetch_one(&self.pool)
+            .await?;
+
+        Ok(user)
+    }
+
+    fn update(&self, user: User) -> Result<User, String> {
+        unimplemented!()
+    }
+
+    fn delete(&self, id: i32) -> Result<(), String> {
+        unimplemented!()
+    }
+}
+
+fn hash_password(password: &str) -> Result<String, AppError> {
+    let salt = SaltString::generate(&mut OsRng);
+
+    let argon2 = Argon2::default();
+
+    let password_hash = argon2.hash_password(password.as_bytes(), &salt)?.to_string();
+
+    Ok(password_hash)
+}
+
+async fn send_email_code(email: &str, code: &str) -> Result<(), AppError> {
+    let from = "863461783@qq.com".parse().unwrap();
+    let to = email.parse().unwrap();
+    let header = "text/html; charset=utf8".parse().unwrap();
+
+    let message = MessageBuilder::new()
+        .from(from)
+        .to(to)
+        .subject("iChat: Your Email Verification Code.")
+        .header(lettre::message::header::ContentType::from(header))
+        .body(format!("<h1>Your verification code is: {}</h1>", code))
+        .map_err(|e| AppError::SmtpError(e.to_string()))?;
+
+    let creds = Credentials::new("863461783@qq.com".to_string(), "ucqzmsgjeuqjbccf".to_string());
+
+    let mailer = SmtpTransport::relay("smtp.qq.com")
+        .map_err(|e| AppError::SmtpError(e.to_string()))?
+        .credentials(creds)
+        .build();
+
+    mailer.send(&message).map_err(|e| AppError::SmtpError(e.to_string()))?;
+
+    Ok(())
+}
