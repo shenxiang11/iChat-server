@@ -1,0 +1,4 @@
+[server]
+port = 6688
+postgres_url = "postgresql://postgres:postgres@localhost:5432/chat"
+redis_url = "redis://localhost:6379"

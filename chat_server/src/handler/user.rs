@@ -1,8 +1,9 @@
 use axum::response::IntoResponse;
-use axum::{Json, Router};
+use axum::{http, Json, Router};
 use axum::extract::State;
 use axum::routing::{post};
 use serde::{Deserialize, Serialize};
+use tower_http::classify::ServerErrorsFailureClass::StatusCode;
 use crate::app_state::AppState;
 use crate::error::AppError;
 
@@ -51,7 +52,7 @@ pub(crate) async fn signup(
     }
 
     let user = state.user_repo.create(&input.email, &input.password, &input.fullname).await?;
-    Ok(Json(user))
+    Ok((http::status::StatusCode::CREATED, Json(user)))
 }
 
 

@@ -4,6 +4,7 @@ use std::sync::Arc;
 use r2d2::Pool;
 use r2d2_redis::RedisConnectionManager;
 use sqlx::PgPool;
+use crate::config::AppConfig;
 use crate::error::AppError;
 use crate::repository::UserRepository;
 
@@ -13,12 +14,12 @@ pub(crate) struct AppState {
 }
 
 impl AppState {
-    pub(crate) async fn try_new() -> Result<Self, AppError> {
-        let pool = PgPool::connect("postgres://postgres:postgres@localhost/chat")
+    pub(crate) async fn try_new(config: AppConfig) -> Result<Self, AppError> {
+        let pool = PgPool::connect(config.server.postgres_url.as_str())
             .await
             .expect("Failed to connect to database");
 
-        let redis_manager = RedisConnectionManager::new("redis://127.0.0.1:6379")
+        let redis_manager = RedisConnectionManager::new(config.server.redis_url.as_str())
             .expect("Failed to create redis connection manager");
 
         let rdb_pool = Pool::builder().max_size(15).build(redis_manager)
@@ -26,6 +27,7 @@ impl AppState {
 
         Ok(Self {
             inner: Arc::new(AppStateInner {
+                config,
                 user_repo: UserRepository::new(pool.clone(), rdb_pool.clone()),
                 pool,
                 rdb_pool,
@@ -43,6 +45,7 @@ impl Deref for AppState {
 }
 
 pub(crate) struct AppStateInner {
+    pub(crate) config: AppConfig,
     pub(crate) pool: PgPool,
     pub(crate) rdb_pool: Pool<RedisConnectionManager>,
     pub(crate) user_repo: UserRepository,

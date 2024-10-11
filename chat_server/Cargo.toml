@@ -16,9 +16,9 @@ redis = "0.27.4"
 r2d2 = "0.8.10"
 r2d2_redis = "0.14.0"
 serde = { workspace = true }
-serde_yaml = { workspace = true }
 sqlx = { workspace = true }
 thiserror = { workspace = true }
+toml = { workspace = true }
 tokio = { workspace = true }
 tower = { workspace = true }
 tower-http = { workspace = true }

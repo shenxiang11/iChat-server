@@ -151,3 +151,4 @@ async fn send_email_code(email: &str, code: &str) -> Result<(), AppError> {
 
     Ok(())
 }
+
