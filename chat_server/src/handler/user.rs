@@ -1,11 +1,11 @@
 use axum::response::IntoResponse;
 use axum::{http, Json, Router};
 use axum::extract::State;
+use axum::http::StatusCode;
 use axum::routing::{post};
 use serde::{Deserialize, Serialize};
-use tower_http::classify::ServerErrorsFailureClass::StatusCode;
 use crate::app_state::AppState;
-use crate::error::AppError;
+use crate::error::{AppError, ErrorOutput};
 
 pub(crate) fn register_routes() -> Router<AppState> {
     Router::new()
@@ -32,7 +32,18 @@ pub(crate) async fn signin(
     State(state): State<AppState>,
     Json(input): Json<SigninUser>,
 ) -> Result<impl IntoResponse, AppError> {
-    Ok("Signin")
+    let user = state.user_repo.verify_password(&input.email, &input.password).await?;
+
+    match user {
+        Some(u) => {
+            let token = state.ek.sign(u.id)?;
+
+            Ok((StatusCode::OK, Json(AuthOutput { token })).into_response())
+        },
+        None => {
+            Ok((StatusCode::FORBIDDEN, Json(ErrorOutput::new("Email or password is incorrect"))).into_response())
+        }
+    }
 }
 
 pub(crate) async fn signup(
@@ -73,4 +84,9 @@ struct CreateUser {
 struct SigninUser {
     email: String,
     password: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct AuthOutput {
+    token: String,
 }

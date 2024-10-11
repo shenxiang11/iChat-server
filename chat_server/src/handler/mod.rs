@@ -1,7 +1,6 @@
 mod user;
 
 use axum::Router;
-pub(crate) use user::*;
 use crate::app_state::AppState;
 
 pub(crate) async fn init_api_router() -> Router<AppState> {

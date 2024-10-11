@@ -1,5 +1,6 @@
 use axum::http::{Response, StatusCode};
 use axum::response::IntoResponse;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -24,6 +25,9 @@ pub(crate) enum AppError {
 
     #[error("Email code incorrect")]
     EmailCodeIncorrect,
+
+    #[error("JwtSimple error: {0}")]
+    JwtSimpleErr(#[from] jwt_simple::Error)
 }
 
 impl IntoResponse for AppError {
@@ -36,8 +40,22 @@ impl IntoResponse for AppError {
             Self::RedisError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::R2D2Error(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::EmailCodeIncorrect => StatusCode::UNPROCESSABLE_ENTITY,
+            Self::JwtSimpleErr(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         (status, self.to_string()).into_response()
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ErrorOutput {
+    pub error: String,
+}
+
+impl ErrorOutput {
+    pub fn new(error: impl Into<String>) -> Self {
+        Self {
+            error: error.into(),
+        }
     }
 }

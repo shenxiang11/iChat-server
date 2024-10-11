@@ -1,7 +1,7 @@
-use argon2::{Argon2, PasswordHasher};
+use std::mem;
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::rand_core::OsRng;
 use argon2::password_hash::SaltString;
-use axum::extract::path::ErrorKind::Message;
 use jwt_simple::reexports::rand;
 use lettre::message::MessageBuilder;
 use lettre::{SmtpTransport, Transport};
@@ -11,7 +11,6 @@ use r2d2_redis::RedisConnectionManager;
 use r2d2_redis::redis::Commands;
 use sqlx::PgPool;
 use tracing::log::debug;
-use tracing_subscriber::fmt::format;
 use crate::error::AppError;
 use crate::models::User;
 
@@ -28,14 +27,6 @@ impl UserRepository {
             pool,
             rdb_pool,
         }
-    }
-
-    fn find_by_id(&self, id: i32) -> Option<User> {
-        unimplemented!()
-    }
-
-    fn find_by_username(&self, username: &str) -> Option<User> {
-        unimplemented!()
     }
 
     pub(crate) async fn send_email_code(&self, email: &str) -> Result<(), AppError> {
@@ -108,12 +99,30 @@ impl UserRepository {
         Ok(user)
     }
 
-    fn update(&self, user: User) -> Result<User, String> {
-        unimplemented!()
-    }
+    pub(crate) async fn verify_password(&self, email: &str, password: &str) -> Result<Option<User>, AppError> {
+        let user: Option<User> = sqlx::query_as(
+            r#"
+            SELECT id, fullname, email, password_hash, created_at FROM users WHERE email = $1
+            "#,
+        )
+            .bind(email)
+            .fetch_optional(&self.pool)
+            .await?;
 
-    fn delete(&self, id: i32) -> Result<(), String> {
-        unimplemented!()
+        match user {
+            Some(mut user) => {
+                let password_hash = mem::take(&mut user.password_hash);
+
+                let is_valid = verify_password(password, &password_hash.unwrap_or_default())?;
+
+                if is_valid {
+                    Ok(Some(user))
+                } else {
+                    Ok(None)
+                }
+            }
+            None => Ok(None)
+        }
     }
 }
 
@@ -152,3 +161,11 @@ async fn send_email_code(email: &str, code: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+fn verify_password(password: &str, password_hash: &str) -> Result<bool, AppError> {
+    let argon2 = Argon2::default();
+    let password_hash = PasswordHash::new(password_hash)?;
+
+    let is_valid = argon2.verify_password(password.as_bytes(), &password_hash).is_ok();
+
+    Ok(is_valid)
+}

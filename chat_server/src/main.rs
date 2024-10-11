@@ -4,11 +4,10 @@ mod repository;
 mod models;
 mod app_state;
 mod config;
+mod utils;
 
 use std::net::{Ipv4Addr, SocketAddr};
 use anyhow::Result;
-use axum::response::IntoResponse;
-use axum::{Router, ServiceExt};
 use tokio::net::TcpListener;
 use tracing::{info, level_filters::LevelFilter};
 use tracing_subscriber::{fmt::Layer, layer::SubscriberExt, util::SubscriberInitExt, Layer as _};
