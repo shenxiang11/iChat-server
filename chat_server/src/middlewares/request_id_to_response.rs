@@ -1,16 +1,10 @@
-use axum::body::Body;
 use axum::extract::Request;
 use axum::http::HeaderName;
-use axum::middleware;
-use axum::middleware::{from_fn, Next};
 use axum::response::Response;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
-use tower_http::request_id::MakeRequestId;
-use tracing::field::debug;
-use tracing::log::debug;
 
 #[derive(Clone)]
 pub struct RequestIdToResponseLayer {

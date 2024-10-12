@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
 
     let request_id_header = HeaderName::from_static("ichat-request-id");
 
-    let app = init_api_router().await;
+    let app = init_api_router(state.clone()).await;
     let app = app.with_state(state.clone());
     let app = app
         .layer(
