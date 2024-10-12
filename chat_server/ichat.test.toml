@@ -2,6 +2,7 @@
 port = 6688
 postgres_url = "postgresql://postgres:postgres@localhost:5432/chat"
 redis_url = "redis://localhost:6379"
+request_id_header = "X-Request-ID"
 
 [jwt]
 sk = """

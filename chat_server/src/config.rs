@@ -12,6 +12,7 @@ pub(crate) struct ServerConfig {
     pub(crate) port: u16,
     pub(crate) postgres_url: String,
     pub(crate) redis_url: String,
+    pub(crate) request_id_header: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
