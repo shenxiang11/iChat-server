@@ -42,3 +42,19 @@ impl DecodingKey {
         Ok(claims.custom.user_id)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_jwt_sign_and_verify_should_work() {
+        let encoding_key = EncodingKey::load(include_str!("../../fixtures/encoding.pem")).unwrap();
+        let decoding_key = DecodingKey::load(include_str!("../../fixtures/decoding.pem")).unwrap();
+
+        let token = encoding_key.sign(1).unwrap();
+        let user_id = decoding_key.verify(&token).unwrap();
+
+        assert_eq!(user_id, 1);
+    }
+}
