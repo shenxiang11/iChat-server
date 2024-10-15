@@ -39,13 +39,14 @@ pub async fn verify_token(State(state): State<AppState>, req: Request, next: Nex
 #[cfg(test)]
 mod tests {
     use axum::body::Body;
-    use axum::http::{Request, StatusCode};
+    use axum::http::{HeaderName, Request, StatusCode};
     use axum::middleware::from_fn_with_state;
     use axum::Router;
     use axum::routing::get;
     use tower::ServiceExt;
     use crate::app_state::AppState;
     use crate::config::AppConfig;
+    use crate::middlewares::RequestIdToResponseLayer;
     use super::verify_token;
 
     #[tokio::test]
@@ -53,10 +54,10 @@ mod tests {
         let config = AppConfig::load()?;
         let state = AppState::try_new(config).await?;
 
-
         let app = Router::new()
             .route("/", get(|| async { "Ok" }))
-            .layer(from_fn_with_state(state.clone(), verify_token));
+            .layer(from_fn_with_state(state.clone(), verify_token))
+            .layer(RequestIdToResponseLayer::new(HeaderName::from_static("ichat-request-id")));
 
         // good token
         let token = state.ek.sign(1)?;

@@ -443,6 +443,7 @@ dependencies = [
  "axum-extra",
  "chat-core",
  "chrono",
+ "hyper",
  "jwt-simple",
  "lettre",
  "r2d2",

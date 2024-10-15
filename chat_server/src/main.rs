@@ -64,7 +64,7 @@ async fn main() -> Result<()> {
 struct RequestIdGenerator;
 
 impl MakeRequestId for RequestIdGenerator {
-    fn make_request_id<B>(&mut self, request: &axum::http::Request<B>) -> Option<RequestId> {
+    fn make_request_id<B>(&mut self, _request: &axum::http::Request<B>) -> Option<RequestId> {
         let request_id = Uuid::now_v7().to_string();
         HeaderValue::from_str(&request_id).ok().map(RequestId::from)
     }

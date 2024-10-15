@@ -3,6 +3,9 @@ name = "chat-server"
 version = "0.1.0"
 edition = "2021"
 
+[profile.dev]
+incremental = true
+
 [dependencies]
 anyhow = { workspace = true }
 argon2 = { version = "0.5.3", features = ["std"] }
@@ -25,3 +28,4 @@ tower-http = { workspace = true, features = ["request-id"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 uuid = { version = "1.10.0", features = ["v7", "serde"] }
+hyper = "1.4.1"

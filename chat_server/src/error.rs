@@ -26,6 +26,12 @@ pub(crate) enum AppError {
     #[error("Email code incorrect")]
     EmailCodeIncorrect,
 
+    #[error("User or password incorrect")]
+    PasswordError,
+
+    #[error("User not found")]
+    UserNotFound,
+
     #[error("JwtSimple error: {0}")]
     JwtSimpleErr(#[from] jwt_simple::Error)
 }
@@ -41,6 +47,8 @@ impl IntoResponse for AppError {
             Self::R2D2Error(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::EmailCodeIncorrect => StatusCode::UNPROCESSABLE_ENTITY,
             Self::JwtSimpleErr(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::PasswordError => StatusCode::FORBIDDEN,
+            Self::UserNotFound => StatusCode::NOT_FOUND,
         };
 
         (status, self.to_string()).into_response()

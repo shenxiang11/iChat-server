@@ -32,15 +32,15 @@ pub(crate) async fn signin(
     State(state): State<AppState>,
     Json(input): Json<SigninUser>,
 ) -> Result<impl IntoResponse, AppError> {
-    let user = state.user_repo.verify_password(&input.email, &input.password).await?;
+    let user = state.user_repo.verify_password(&input.email, &input.password).await;
 
     match user {
-        Some(u) => {
+        Ok(u) => {
             let token = state.ek.sign(u.id)?;
 
             Ok((StatusCode::OK, Json(AuthOutput { token })).into_response())
         },
-        None => {
+        Err(_) => {
             Ok((StatusCode::FORBIDDEN, Json(ErrorOutput::new("Email or password is incorrect"))).into_response())
         }
     }
