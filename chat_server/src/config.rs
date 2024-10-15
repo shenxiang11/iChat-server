@@ -1,4 +1,3 @@
-use std::fs;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -23,7 +22,7 @@ pub(crate) struct JwtConfig {
 
 impl AppConfig {
     pub(crate) fn load() -> anyhow::Result<Self> {
-        let config_data = fs::read_to_string("chat_server/ichat.test.toml")?;
+        let config_data = include_str!("../ichat.test.toml");
         let config: AppConfig = toml::from_str(&config_data)?;
         Ok(config)
     }
