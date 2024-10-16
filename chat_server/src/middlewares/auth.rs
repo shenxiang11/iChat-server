@@ -52,7 +52,7 @@ mod tests {
     #[tokio::test]
     async fn  verify_token_should_work() -> anyhow::Result<()> {
         let config = AppConfig::load()?;
-        let state = AppState::try_new(config).await?;
+        let state = AppState::new(config).await;
 
         let app = Router::new()
             .route("/", get(|| async { "Ok" }))

@@ -22,7 +22,10 @@ pub(crate) struct JwtConfig {
 
 impl AppConfig {
     pub(crate) fn load() -> anyhow::Result<Self> {
+        #[cfg(not(test))]
         let config_data = include_str!("../ichat.test.toml");
+        #[cfg(test)]
+        let config_data = include_str!("../ichat.unit.test.toml");
         let config: AppConfig = toml::from_str(&config_data)?;
         Ok(config)
     }

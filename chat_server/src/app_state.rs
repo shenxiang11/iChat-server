@@ -14,7 +14,7 @@ pub(crate) struct AppState {
 }
 
 impl AppState {
-    pub(crate) async fn try_new(config: AppConfig) -> Result<Self, AppError> {
+    pub(crate) async fn new(config: AppConfig) -> Self {
         let dk = DecodingKey::load(&config.jwt.pk).expect("Failed to load decoding key");
         let ek = EncodingKey::load(&config.jwt.sk).expect("Failed to load encoding key");
 
@@ -28,7 +28,7 @@ impl AppState {
         let rdb_pool = Pool::builder().max_size(15).build(redis_manager)
             .expect("Failed to create redis pool");
 
-        Ok(Self {
+        Self {
             inner: Arc::new(AppStateInner {
                 config,
                 user_repo: UserRepository::new(pool.clone(), rdb_pool.clone()),
@@ -37,7 +37,7 @@ impl AppState {
                 dk,
                 ek,
             }),
-        })
+        }
     }
 }
 

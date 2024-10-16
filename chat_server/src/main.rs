@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
 
     let config = AppConfig::load()?;
 
-    let state = AppState::try_new(config).await?;
+    let state = AppState::new(config).await;
 
     let request_id_header = HeaderName::from_static("ichat-request-id");
 
