@@ -63,7 +63,7 @@ pub(crate) async fn signup(
     }
 
     let user = state.user_repo.create(&input.email, &input.password, &input.fullname).await?;
-    Ok((http::status::StatusCode::CREATED, Json(user)))
+    Ok((StatusCode::CREATED, Json(user)))
 }
 
 
@@ -89,4 +89,101 @@ struct SigninUser {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct AuthOutput {
     token: String,
+}
+
+
+#[cfg(test)]
+mod tests {
+    use axum::extract::State;
+    use axum::http::StatusCode;
+    use axum::Json;
+    use axum::response::IntoResponse;
+    use crate::app_state::AppState;
+    use crate::config::AppConfig;
+    use crate::handler::user::{CreateUser, register_routes, send_email_code, SendEmail, signin, SigninUser, signup};
+
+    #[tokio::test]
+    async fn register_routes_should_work() {
+        let config = AppConfig::load().unwrap();
+        let state = AppState::new(config).await;
+        let _ = register_routes();
+    }
+
+    #[tokio::test]
+    async fn handler_send_email_code_should_work() {
+        let config = AppConfig::load().unwrap();
+        let state = AppState::new(config).await;
+
+        let input = SendEmail {
+            email: "sx931210@qq.com".to_string(),
+        };
+
+        let ret = send_email_code(State(state.clone()), Json(input)).await.into_response();
+        assert_eq!(ret.status(), StatusCode::OK);
+
+        let input = SendEmail {
+            email: "863461783@qq.com".to_string(),
+        };
+        let ret = send_email_code(State(state), Json(input)).await.into_response();
+        assert_eq!(ret.status(), StatusCode::CONFLICT);
+    }
+
+    #[tokio::test]
+    async fn handler_signin_should_work() {
+        let config = AppConfig::load().unwrap();
+        let state = AppState::new(config).await;
+
+        let input = SigninUser {
+            email: "863461783@qq.com".to_string(),
+            password: "1234567".to_string(),
+        };
+        let ret = signin(State(state.clone()), Json(input)).await.into_response();
+        assert_eq!(ret.status(), StatusCode::FORBIDDEN);
+
+        let input = SigninUser {
+            email: "863461783@qq.com".to_string(),
+            password: "123456".to_string(),
+        };
+        let ret = signin(State(state.clone()), Json(input)).await.into_response();
+        assert_eq!(ret.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn handler_signup_should_work() {
+        let config = AppConfig::load().unwrap();
+        let state = AppState::new(config).await;
+        let repo = &state.user_repo;
+
+        let input = CreateUser {
+            email: "863461783@qq.com".to_string(),
+            code: "12345".to_string(),
+            password: "123456".to_string(),
+            fullname: "Unit Test".to_string(),
+        };
+
+        let ret = signup(State(state.clone()), Json(input)).await.into_response();
+        assert_eq!(ret.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+        let code = repo.send_email_code("sx931210@qq.com").await.unwrap();
+        let input = CreateUser {
+            email: "sx931210@qq.com".to_string(),
+            code,
+            password: "123456".to_string(),
+            fullname: "Unit Test".to_string(),
+        };
+
+        let ret = signup(State(state.clone()), Json(input)).await.into_response();
+        assert_eq!(ret.status(), StatusCode::CREATED);
+
+        let code = repo.send_email_code("863461783@qq.com").await.unwrap();
+        let input = CreateUser {
+            email: "863461783@qq.com".to_string(),
+            code,
+            password: "123456".to_string(),
+            fullname: "Unit Test".to_string(),
+        };
+
+        let ret = signup(State(state.clone()), Json(input)).await.into_response();
+        assert_eq!(ret.status(), StatusCode::CONFLICT);
+    }
 }
