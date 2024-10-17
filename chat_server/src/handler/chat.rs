@@ -39,7 +39,7 @@ pub(crate) async fn get_chat_info_by_id(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
-    let chats = state.chat_repo.get_chat_info_by_id(id, user_id).await?;
+    let chats = state.chat_repo.get_chat_by_id(id, user_id).await?;
 
     Ok(Json(chats))
 }

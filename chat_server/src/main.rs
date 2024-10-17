@@ -6,12 +6,19 @@ mod app_state;
 mod config;
 mod utils;
 mod middlewares;
+mod query;
 
 use std::net::{Ipv4Addr, SocketAddr};
 use anyhow::Result;
+use async_graphql::{Context, EmptyMutation, EmptySubscription, MergedObject, Object, Schema};
+use async_graphql::http::GraphiQLSource;
+use async_graphql_axum::GraphQL;
 use axum::extract::Request;
 use axum::http::{HeaderName, HeaderValue};
 use axum::middleware::from_fn;
+use axum::response;
+use axum::response::IntoResponse;
+use axum::routing::get;
 use tokio::net::TcpListener;
 use tower_http::{LatencyUnit, request_id};
 use tower_http::request_id::{MakeRequestId, PropagateRequestId, PropagateRequestIdLayer, RequestId};
@@ -21,8 +28,29 @@ use tracing_subscriber::{fmt::Layer, layer::SubscriberExt, util::SubscriberInitE
 use uuid::Uuid;
 use crate::app_state::AppState;
 use crate::config::AppConfig;
+use crate::error::AppError;
 use crate::handler::{init_api_router};
 use crate::middlewares::{RequestIdToResponseLayer};
+use crate::models::{Chat};
+use crate::query::ChatQuery;
+use crate::repository::{ChatRepository, UserRepository};
+
+#[derive(MergedObject, Default)]
+struct QueryRoot(DemoQuery, ChatQuery);
+
+#[derive(Default)]
+struct DemoQuery;
+
+#[Object]
+impl DemoQuery {
+    async fn hello(&self) -> String {
+        "hello world".to_string()
+    }
+}
+
+async fn graphiql() -> impl IntoResponse {
+    response::Html(GraphiQLSource::build().endpoint("/").finish())
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -35,19 +63,23 @@ async fn main() -> Result<()> {
 
     let request_id_header = HeaderName::from_static("ichat-request-id");
 
+    let schema = Schema::build(QueryRoot::default(), EmptyMutation, EmptySubscription)
+        .data(state.clone()).finish();
+
     let app = init_api_router(state.clone()).await;
     let app = app.with_state(state.clone());
     let app = app
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().include_headers(true))
-                .on_request(DefaultOnRequest::new().level(Level::INFO))
-                .on_response(
-                    DefaultOnResponse::new()
-                        .level(Level::INFO)
-                        .latency_unit(LatencyUnit::Micros),
-                )
-        )
+        .route("/", get(graphiql).post_service(GraphQL::new(schema)))
+        // .layer(
+        //     TraceLayer::new_for_http()
+        //         .make_span_with(DefaultMakeSpan::new().include_headers(true))
+        //         .on_request(DefaultOnRequest::new().level(Level::INFO))
+        //         .on_response(
+        //             DefaultOnResponse::new()
+        //                 .level(Level::INFO)
+        //                 .latency_unit(LatencyUnit::Micros),
+        //         )
+        // )
         .layer(RequestIdToResponseLayer::new(request_id_header.clone()))
         .layer(request_id::SetRequestIdLayer::new(request_id_header.clone(), RequestIdGenerator))
         .layer(PropagateRequestIdLayer::new(request_id_header));

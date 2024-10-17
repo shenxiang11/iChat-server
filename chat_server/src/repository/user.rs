@@ -75,6 +75,19 @@ impl UserRepository {
         Ok(user)
     }
 
+    pub(crate) async fn find_by_id(&self, id: i64) -> Result<Option<User>, AppError> {
+        let user: Option<User> = sqlx::query_as(
+            r#"
+            SELECT id, fullname, email, created_at FROM users WHERE id = $1
+            "#,
+        )
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        Ok(user)
+    }
+
     pub(crate) async fn create(&self, email: &str, password: &str, fullname: &str) -> Result<User, AppError> {
         let user = self.find_by_email(email).await?;
 
