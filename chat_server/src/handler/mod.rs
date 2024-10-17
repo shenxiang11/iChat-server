@@ -1,4 +1,5 @@
 mod user;
+mod chat;
 
 use axum::handler::Handler;
 use axum::middleware::from_fn_with_state;
@@ -11,6 +12,7 @@ use crate::middlewares::{verify_token};
 pub(crate) async fn init_api_router(state: AppState) -> Router<AppState> {
     let api_router = Router::new()
         .route("/test", get(handle_test))
+        .nest("/chats", chat::register_routes())
         .layer(from_fn_with_state(state.clone(), verify_token))
         .nest("/users", user::register_routes());
 

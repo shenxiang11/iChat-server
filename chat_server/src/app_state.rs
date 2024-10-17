@@ -3,9 +3,9 @@ use std::sync::Arc;
 use r2d2::Pool;
 use r2d2_redis::RedisConnectionManager;
 use sqlx::PgPool;
+
 use crate::config::AppConfig;
-use crate::error::AppError;
-use crate::repository::UserRepository;
+use crate::repository::{ChatRepository, UserRepository};
 use crate::utils::{DecodingKey, EncodingKey};
 
 #[derive(Clone)]
@@ -32,6 +32,7 @@ impl AppState {
             inner: Arc::new(AppStateInner {
                 config,
                 user_repo: UserRepository::new(pool.clone(), rdb_pool.clone()),
+                chat_repo: ChatRepository::new(pool.clone()),
                 pool,
                 rdb_pool,
                 dk,
@@ -54,6 +55,7 @@ pub(crate) struct AppStateInner {
     pub(crate) pool: PgPool,
     pub(crate) rdb_pool: Pool<RedisConnectionManager>,
     pub(crate) user_repo: UserRepository,
+    pub(crate) chat_repo: ChatRepository,
     pub(crate) dk: DecodingKey,
     pub(crate) ek: EncodingKey,
 }

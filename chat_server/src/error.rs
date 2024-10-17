@@ -33,7 +33,10 @@ pub(crate) enum AppError {
     UserNotFound,
 
     #[error("JwtSimple error: {0}")]
-    JwtSimpleErr(#[from] jwt_simple::Error)
+    JwtSimpleErr(#[from] jwt_simple::Error),
+
+    #[error("Chat error: {0}")]
+    CreateChatError(String),
 }
 
 impl IntoResponse for AppError {
@@ -49,6 +52,7 @@ impl IntoResponse for AppError {
             Self::JwtSimpleErr(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::PasswordError => StatusCode::FORBIDDEN,
             Self::UserNotFound => StatusCode::NOT_FOUND,
+            Self::CreateChatError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         (status, self.to_string()).into_response()
