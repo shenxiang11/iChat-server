@@ -26,8 +26,18 @@ pub enum ChatType {
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Chat {
-    id: i64,
-    owner_id: i64,
-    r#type: ChatType,
-    created_at: DateTime<Utc>,
+    pub(crate) id: i64,
+    pub(crate) owner_id: i64,
+    pub(crate) r#type: ChatType,
+    pub(crate) created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatInfo {
+    pub(crate) id: i64,
+    pub(crate) owner: User,
+    pub(crate) r#type: ChatType,
+    pub(crate) created_at: DateTime<Utc>,
+    pub(crate) members: Vec<User>,
 }

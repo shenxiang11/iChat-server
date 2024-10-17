@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Postgres, Transaction};
-use crate::models::{Chat, ChatType, User};
+use crate::models::{Chat, ChatInfo, ChatType, User};
 
 pub struct ChatRepository {
     biz: String,
@@ -16,15 +16,62 @@ impl ChatRepository {
         }
     }
 
-    pub(crate) async fn get_all_chats(&self) -> Result<Vec<Chat>, AppError> {
-        let chats: Vec<Chat> = sqlx::query_as(
+    pub(crate) async fn get_chat_info_by_id(&self, id: i64, user_id: i64) -> Result<ChatInfo, AppError> {
+        let chat: Chat = sqlx::query_as(
             r#"
-            SELECT id, owner_id, type, created_at
-            FROM chats
+            SELECT c.id, c.owner_id, c.type, c.created_at
+            FROM chats c
+            JOIN chat_members cm ON c.id = cm.chat_id
+            WHERE c.id = $1 AND cm.user_id = $2
             "#,
         )
-        .fetch_all(&self.pool)
-        .await?;
+            .bind(id)
+            .bind(user_id)
+            .fetch_one(&self.pool)
+            .await?;
+
+        let owner: User = sqlx::query_as(
+            r#"
+            SELECT id, fullname, email, created_at FROM users WHERE id = $1
+            "#,
+        )
+            .bind(chat.owner_id)
+            .fetch_one(&self.pool)
+            .await?;
+
+        let members: Vec<User> = sqlx::query_as(
+            r#"
+            SELECT u.id, u.fullname, u.email, u.created_at
+            FROM users u
+            JOIN chat_members cm ON u.id = cm.user_id
+            WHERE cm.chat_id = $1
+            "#,
+        )
+            .bind(id)
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(ChatInfo {
+            id: chat.id,
+            owner,
+            r#type: chat.r#type,
+            created_at: chat.created_at,
+            members,
+        })
+    }
+
+    pub(crate) async fn get_all_chats(&self, user_id: i64) -> Result<Vec<Chat>, AppError> {
+        let chats: Vec<Chat> = sqlx::query_as(
+            r#"
+            SELECT c.id, c.owner_id, c.type, c.created_at
+            FROM chats c
+            JOIN chat_members cm ON c.id = cm.chat_id
+            WHERE cm.user_id = $1
+            "#,
+        )
+            .bind(user_id)
+            .fetch_all(&self.pool)
+            .await?;
 
         Ok(chats)
     }

@@ -1,7 +1,7 @@
 use axum::{Extension, Json, Router};
 use axum::routing::{get, post};
 use anyhow::Result;
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::response::IntoResponse;
 use serde::{Deserialize, Serialize};
 
@@ -12,6 +12,7 @@ pub(crate) fn register_routes() -> Router<AppState> {
     Router::new()
         .route("/", post(create_chat))
         .route("/", get(get_all_chats))
+        .route("/:id", get(get_chat_info_by_id))
 }
 
 pub(crate) async fn create_chat(
@@ -25,9 +26,20 @@ pub(crate) async fn create_chat(
 }
 
 pub(crate) async fn get_all_chats(
+    Extension(user_id): Extension<i64>,
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
-    let chats = state.chat_repo.get_all_chats().await?;
+    let chats = state.chat_repo.get_all_chats(user_id).await?;
+
+    Ok(Json(chats))
+}
+
+pub(crate) async fn get_chat_info_by_id(
+    Extension(user_id): Extension<i64>,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<impl IntoResponse, AppError> {
+    let chats = state.chat_repo.get_chat_info_by_id(id, user_id).await?;
 
     Ok(Json(chats))
 }
