@@ -10,7 +10,7 @@ pub(crate) use user::*;
 pub(crate) struct QueryRoot(DemoQuery, ChatQuery);
 
 #[derive(MergedObject, Default)]
-pub(crate) struct MutationRoot(UserMutation);
+pub(crate) struct MutationRoot(UserMutation, ChatMutation);
 
 #[derive(Default)]
 struct DemoQuery;

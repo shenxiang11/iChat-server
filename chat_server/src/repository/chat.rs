@@ -67,9 +67,10 @@ impl ChatRepository {
 
     pub(crate) async fn create(
         &self,
-        owner_id: i64,
-        mut member_ids: Vec<i64>,
-    ) -> Result<i64, AppError> {
+        owner_id: UserId,
+        mut member_ids: Vec<UserId>,
+        name: String,
+    ) -> Result<Chat, AppError> {
         if !member_ids.contains(&owner_id) {
             member_ids.push(owner_id);
         }
@@ -88,20 +89,21 @@ impl ChatRepository {
 
         let mut tx = self.pool.begin().await?;
 
-        let ret: Result<i64, _> = sqlx::query_scalar(
+        let ret: Result<Chat, _> = sqlx::query_as(
             r#"
-            INSERT INTO chats (owner_id, type, created_at)
-            VALUES ($1, $2, now())
-            RETURNING id
+            INSERT INTO chats (owner_id, type, name, created_at)
+            VALUES ($1, $2, $3, now())
+            RETURNING id, owner_id, type, name, created_at
             "#,
         )
         .bind(owner_id)
         .bind(chat_type)
+        .bind(name)
         .fetch_one(&mut *tx)
         .await;
 
         match ret {
-            Ok(chat_id) => {
+            Ok(chat) => {
                 for member_id in member_ids {
                     let ret = sqlx::query(
                         r#"
@@ -109,7 +111,7 @@ impl ChatRepository {
                 VALUES ($1, $2, now())
                 "#,
                     )
-                    .bind(chat_id)
+                    .bind(chat.id)
                     .bind(member_id)
                     .execute(&mut *tx)
                     .await;
@@ -122,7 +124,7 @@ impl ChatRepository {
 
                 tx.commit().await?;
 
-                Ok(chat_id)
+                Ok(chat)
             }
             Err(e) => {
                 tx.rollback().await?;

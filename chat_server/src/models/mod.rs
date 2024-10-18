@@ -33,6 +33,7 @@ pub enum ChatType {
 #[serde(rename_all = "camelCase")]
 pub struct Chat {
     pub(crate) id: i64,
+    pub(crate) name: String,
     pub(crate) owner_id: UserId,
     pub(crate) r#type: ChatType,
     pub(crate) created_at: DateTime<Utc>,

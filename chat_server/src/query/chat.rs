@@ -7,6 +7,9 @@ use crate::models::{Chat, UserId};
 #[derive(Default)]
 pub(crate) struct ChatQuery;
 
+#[derive(Default)]
+pub(crate) struct ChatMutation;
+
 #[Object]
 impl ChatQuery {
     async fn get_chat(
@@ -35,5 +38,21 @@ impl ChatQuery {
             Ok(chats) => Ok(chats),
             Err(_) => Ok(vec![])
         }
+    }
+}
+
+#[Object]
+impl ChatMutation {
+    async fn create_chat(
+        &self,
+        ctx: &Context<'_>,
+        member_ids: Vec<UserId>
+    ) -> Result<Chat, AppError> {
+        let state = AppState::shared().await;
+        let user_id = ctx.data::<UserId>().map_err(|_| AppError::GetGraphqlUserIdError)?;
+
+        let chat = state.chat_repo.create(*user_id, member_ids, "".to_string()).await?;
+
+        Ok(chat)
     }
 }
