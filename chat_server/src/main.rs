@@ -10,13 +10,14 @@ mod query;
 
 use std::net::{Ipv4Addr, SocketAddr};
 use anyhow::Result;
-use async_graphql::{Context, EmptyMutation, EmptySubscription, MergedObject, Object, Schema};
+use async_graphql::{Context, EmptyMutation, EmptySubscription, MergedObject, Object, Response, Schema};
+use async_graphql::futures_util::SinkExt;
 use async_graphql::http::GraphiQLSource;
-use async_graphql_axum::GraphQL;
-use axum::extract::Request;
-use axum::http::{HeaderName, HeaderValue};
-use axum::middleware::from_fn;
-use axum::response;
+use async_graphql_axum::{GraphQL, GraphQLRequest, GraphQLResponse};
+use axum::extract::{Request, State};
+use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
+use axum::middleware::{from_fn, from_fn_with_state};
+use axum::{Json, response};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use tokio::net::TcpListener;
@@ -29,9 +30,9 @@ use uuid::Uuid;
 use crate::app_state::AppState;
 use crate::config::AppConfig;
 use crate::error::AppError;
-use crate::handler::{init_api_router};
-use crate::middlewares::{RequestIdToResponseLayer};
-use crate::models::{Chat};
+use crate::handler::{init_graphql_router};
+use crate::middlewares::{RequestIdToResponseLayer, verify_token};
+use crate::models::{Chat, UserId};
 use crate::query::{ChatQuery, UserMutation};
 use crate::repository::{ChatRepository, UserRepository};
 
@@ -51,41 +52,9 @@ impl DemoQuery {
     }
 }
 
-async fn graphiql() -> impl IntoResponse {
-    response::Html(GraphiQLSource::build().endpoint("/").finish())
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
-    let layer = Layer::new().with_filter(LevelFilter::DEBUG);
-    tracing_subscriber::registry().with(layer).init();
-
-    let config = AppConfig::load()?;
-
-    let state = AppState::new(config).await;
-
-    let request_id_header = HeaderName::from_static("ichat-request-id");
-
-    let schema = Schema::build(QueryRoot::default(), MutationRoot::default(), EmptySubscription)
-        .data(state.clone()).finish();
-
-    let app = init_api_router(state.clone()).await;
-    let app = app.with_state(state.clone());
-    let app = app
-        .route("/", get(graphiql).post_service(GraphQL::new(schema)))
-        // .layer(
-        //     TraceLayer::new_for_http()
-        //         .make_span_with(DefaultMakeSpan::new().include_headers(true))
-        //         .on_request(DefaultOnRequest::new().level(Level::INFO))
-        //         .on_response(
-        //             DefaultOnResponse::new()
-        //                 .level(Level::INFO)
-        //                 .latency_unit(LatencyUnit::Micros),
-        //         )
-        // )
-        .layer(RequestIdToResponseLayer::new(request_id_header.clone()))
-        .layer(request_id::SetRequestIdLayer::new(request_id_header.clone(), RequestIdGenerator))
-        .layer(PropagateRequestIdLayer::new(request_id_header));
+    let app = init_graphql_router().await;
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8080));
     let listener = TcpListener::bind(&address).await?;

@@ -3,10 +3,12 @@ use std::sync::Arc;
 use r2d2::Pool;
 use r2d2_redis::RedisConnectionManager;
 use sqlx::PgPool;
-
+use tokio::sync::OnceCell;
 use crate::config::AppConfig;
 use crate::repository::{ChatRepository, UserRepository};
 use crate::utils::{DecodingKey, EncodingKey};
+
+static ONCE: OnceCell<AppState> = OnceCell::const_new();
 
 #[derive(Clone)]
 pub(crate) struct AppState {
@@ -14,7 +16,15 @@ pub(crate) struct AppState {
 }
 
 impl AppState {
-    pub(crate) async fn new(config: AppConfig) -> Self {
+    pub(crate) async fn shared() -> &'static AppState {
+        ONCE.get_or_init(|| async {
+            AppState::new().await
+        }).await
+    }
+
+    pub(crate) async fn new() -> Self {
+        let config = AppConfig::shared().await;
+
         let dk = DecodingKey::load(&config.jwt.pk).expect("Failed to load decoding key");
         let ek = EncodingKey::load(&config.jwt.sk).expect("Failed to load encoding key");
 

@@ -1,6 +1,6 @@
 use crate::error::AppError;
 use sqlx::{PgPool};
-use crate::models::{Chat, ChatType, User};
+use crate::models::{Chat, ChatType, User, UserId};
 
 pub struct ChatRepository {
     biz: String,
@@ -31,7 +31,7 @@ impl ChatRepository {
         Ok(users)
     }
 
-    pub(crate) async fn get_chat_by_id(&self, id: i64, user_id: i64) -> Result<Chat, AppError> {
+    pub(crate) async fn get_chat_by_id(&self, id: i64, user_id: &UserId) -> Result<Chat, AppError> {
         let chat: Chat = sqlx::query_as(
             r#"
             SELECT c.id, c.owner_id, c.type, c.created_at

@@ -12,7 +12,7 @@ use r2d2_redis::redis::Commands;
 use sqlx::PgPool;
 use tracing::log::debug;
 use crate::error::AppError;
-use crate::models::User;
+use crate::models::{User, UserId};
 
 pub struct UserRepository {
     biz: String,
@@ -77,7 +77,7 @@ impl UserRepository {
         Ok(user)
     }
 
-    pub(crate) async fn find_by_id(&self, id: i64) -> Result<Option<User>, AppError> {
+    pub(crate) async fn find_by_id(&self, id: UserId) -> Result<Option<User>, AppError> {
         let user: Option<User> = sqlx::query_as(
             r#"
             SELECT id, fullname, email, created_at FROM users WHERE id = $1

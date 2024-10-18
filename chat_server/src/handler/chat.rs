@@ -12,7 +12,6 @@ pub(crate) fn register_routes() -> Router<AppState> {
     Router::new()
         .route("/", post(create_chat))
         .route("/", get(get_all_chats))
-        .route("/:id", get(get_chat_info_by_id))
 }
 
 pub(crate) async fn create_chat(
@@ -30,16 +29,6 @@ pub(crate) async fn get_all_chats(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
     let chats = state.chat_repo.get_all_chats(user_id).await?;
-
-    Ok(Json(chats))
-}
-
-pub(crate) async fn get_chat_info_by_id(
-    Extension(user_id): Extension<i64>,
-    State(state): State<AppState>,
-    Path(id): Path<i64>,
-) -> Result<impl IntoResponse, AppError> {
-    let chats = state.chat_repo.get_chat_by_id(id, user_id).await?;
 
     Ok(Json(chats))
 }

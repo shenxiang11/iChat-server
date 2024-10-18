@@ -2,12 +2,15 @@ use async_graphql::{ComplexObject, Context, Enum, Object, SimpleObject};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use crate::app_state::AppState;
 use crate::error::AppError;
+
+pub type UserId = i64;
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, PartialEq, SimpleObject)]
 #[serde(rename_all = "camelCase")]
 pub struct User {
-    pub id: i64,
+    pub id: UserId,
     pub fullname: String,
     pub email: String,
     #[sqlx(default)]
@@ -30,7 +33,7 @@ pub enum ChatType {
 #[serde(rename_all = "camelCase")]
 pub struct Chat {
     pub(crate) id: i64,
-    pub(crate) owner_id: i64,
+    pub(crate) owner_id: UserId,
     pub(crate) r#type: ChatType,
     pub(crate) created_at: DateTime<Utc>,
 }
@@ -38,13 +41,13 @@ pub struct Chat {
 #[ComplexObject]
 impl Chat {
     async fn owner(&self, ctx: &Context<'_>) -> anyhow::Result<Option<User>, AppError> {
-        let state = ctx.data::<crate::AppState>().unwrap();
+        let state = AppState::shared().await;
         let user = state.user_repo.find_by_id(self.owner_id).await?;
         Ok(user)
     }
 
     async fn members(&self, ctx: &Context<'_>) -> anyhow::Result<Vec<User>, AppError> {
-        let state = ctx.data::<crate::AppState>().unwrap();
+        let state = AppState::shared().await;
         let users = state.chat_repo.get_members(self.id).await?;
         Ok(users)
     }

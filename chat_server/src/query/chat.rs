@@ -1,7 +1,7 @@
 use async_graphql::{Context, Object};
 
 use crate::app_state::AppState;
-use crate::models::Chat;
+use crate::models::{Chat, UserId};
 
 #[derive(Default)]
 pub(crate) struct ChatQuery;
@@ -13,8 +13,10 @@ impl ChatQuery {
         ctx: &Context<'_>,
         id: i64
     ) -> anyhow::Result<Option<Chat>> {
-        let state = ctx.data::<AppState>().unwrap();
-        let res = state.chat_repo.get_chat_by_id(id, 1).await;
+        let state = AppState::shared().await;
+        let user_id = ctx.data::<UserId>().unwrap();
+
+        let res = state.chat_repo.get_chat_by_id(id, user_id).await;
 
         match res {
             Ok(chat) => Ok(Some(chat)),
