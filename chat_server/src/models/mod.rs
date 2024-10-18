@@ -40,13 +40,17 @@ pub struct Chat {
 
 #[ComplexObject]
 impl Chat {
-    async fn owner(&self, ctx: &Context<'_>) -> anyhow::Result<Option<User>, AppError> {
+    async fn owner(&self) -> anyhow::Result<User, AppError> {
         let state = AppState::shared().await;
         let user = state.user_repo.find_by_id(self.owner_id).await?;
-        Ok(user)
+
+        match user {
+            Some(user) => Ok(user),
+            None => Err(AppError::UserNotFound),
+        }
     }
 
-    async fn members(&self, ctx: &Context<'_>) -> anyhow::Result<Vec<User>, AppError> {
+    async fn members(&self) -> anyhow::Result<Vec<User>, AppError> {
         let state = AppState::shared().await;
         let users = state.chat_repo.get_members(self.id).await?;
         Ok(users)

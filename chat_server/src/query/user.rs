@@ -13,10 +13,11 @@ pub(crate) struct UserMutation;
 impl UserMutation {
     async fn signup(
         &self,
-        ctx: &Context<'_>,
+        _ctx: &Context<'_>,
         input: CreateUser
     ) -> Result<User, AppError> {
-        let state = ctx.data::<AppState>().unwrap();
+        let state = AppState::shared().await;
+
         let is_code_correct = state.user_repo.verify_email_code(&input.email, &input.code).await?;
 
         if !is_code_correct {
@@ -35,10 +36,10 @@ impl UserMutation {
 
     async fn signin(
         &self,
-        ctx: &Context<'_>,
+        _ctx: &Context<'_>,
         input: SigninUser
     ) -> Result<AuthOutput, AppError> {
-        let state = ctx.data::<AppState>().unwrap();
+        let state = AppState::shared().await;
         let user = state.user_repo.verify_password(&input.email, &input.password).await;
 
         match user {
@@ -58,10 +59,10 @@ impl UserMutation {
 
     async fn send_email(
         &self,
-        ctx: &Context<'_>,
+        _ctx: &Context<'_>,
         input: SendEmail
     ) -> Result<MessageOutput, AppError> {
-        let state = ctx.data::<AppState>().unwrap();
+        let state = AppState::shared().await;
         let _ = state.user_repo.send_email_code(&input.email).await?;
 
         Ok(MessageOutput {
@@ -104,12 +105,12 @@ struct MessageOutput {
 
 #[ComplexObject]
 impl AuthOutput {
-    async fn user(&self, ctx: &Context<'_>) -> Result<User, AppError> {
-        let state = ctx.data::<AppState>().unwrap();
+    async fn user(&self, _ctx: &Context<'_>) -> Result<User, AppError> {
+        let state = AppState::shared().await;
         let user = state.user_repo.find_by_id(self.user_id).await?;
 
         match user {
-            None => return Err(AppError::UserNotFound),
+            None => return Err(AppError::ChatNotFound),
             Some(u) => return Ok(u)
         }
     }

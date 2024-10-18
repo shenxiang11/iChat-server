@@ -37,6 +37,15 @@ pub(crate) enum AppError {
 
     #[error("Chat error: {0}")]
     CreateChatError(String),
+
+    #[error("Chat error: {0}")]
+    ChatError(String),
+
+    #[error("Chat not found")]
+    ChatNotFound,
+
+    #[error("Get graphql user id error")]
+    GetGraphqlUserIdError,
 }
 
 impl IntoResponse for AppError {
@@ -53,6 +62,9 @@ impl IntoResponse for AppError {
             Self::PasswordError => StatusCode::FORBIDDEN,
             Self::UserNotFound => StatusCode::NOT_FOUND,
             Self::CreateChatError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::ChatError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::ChatNotFound => StatusCode::NOT_FOUND,
+            Self::GetGraphqlUserIdError => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         (status, self.to_string()).into_response()
