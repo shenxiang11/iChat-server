@@ -218,7 +218,7 @@ mod tests {
 
     #[tokio::test]
     async fn user_repo_send_email_code_and_verify_should_work() {
-        let config = AppConfig::load().unwrap();
+        let config = AppConfig::shared().await;
 
         let pool = PgPool::connect(config.server.postgres_url.as_str())
             .await
@@ -246,7 +246,7 @@ mod tests {
 
     #[tokio::test]
     async fn user_repo_find_by_email_should_work() {
-        let config = AppConfig::load().unwrap();
+        let config = AppConfig::shared().await;
 
         let pool = PgPool::connect(config.server.postgres_url.as_str())
             .await
@@ -270,7 +270,7 @@ mod tests {
 
     #[tokio::test]
     async fn user_repo_create_user_should_work() {
-        let config = AppConfig::load().unwrap();
+        let config = AppConfig::shared().await;
 
         let pool = PgPool::connect(config.server.postgres_url.as_str())
             .await
@@ -294,7 +294,7 @@ mod tests {
 
     #[tokio::test]
     async fn user_repo_verify_password_should_work() {
-        let config = AppConfig::load().unwrap();
+        let config = AppConfig::shared().await;
 
         let pool = PgPool::connect(config.server.postgres_url.as_str())
             .await

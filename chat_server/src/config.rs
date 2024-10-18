@@ -2,7 +2,6 @@ use std::ops::Deref;
 use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tokio::sync::OnceCell;
-use crate::app_state::{AppState, AppStateInner};
 
 static ONCE: OnceCell<AppConfig> = OnceCell::const_new();
 

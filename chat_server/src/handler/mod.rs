@@ -1,25 +1,23 @@
-mod user;
-mod chat;
-
 use async_graphql::{EmptySubscription, Schema};
 use async_graphql::http::GraphiQLSource;
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
-use axum::handler::Handler;
 use axum::response::IntoResponse;
 use axum::{response, Router};
 use axum::extract::State;
-use axum::http::{HeaderMap, HeaderName};
+use axum::http::{HeaderMap, HeaderName, HeaderValue};
 use axum::routing::get;
 use tower_http::{LatencyUnit, request_id};
-use tower_http::request_id::PropagateRequestIdLayer;
+use tower_http::request_id::{MakeRequestId, PropagateRequestIdLayer, RequestId};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer};
 use tracing::Level;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{fmt::Layer, layer::SubscriberExt, util::SubscriberInitExt, Layer as _};
+use uuid::Uuid;
+
 use crate::app_state::AppState;
-use crate::{MutationRoot, QueryRoot, RequestIdGenerator};
 use crate::middlewares::RequestIdToResponseLayer;
 use crate::models::UserId;
+use crate::query::{MutationRoot, QueryRoot};
 
 pub(crate) async fn init_graphql_router() -> Router {
     let layer = Layer::new().with_filter(LevelFilter::DEBUG);
@@ -79,4 +77,14 @@ async fn graphql_handler(
     }
 
     schema.execute(req).await.into()
+}
+
+#[derive(Debug, Clone)]
+struct RequestIdGenerator;
+
+impl MakeRequestId for RequestIdGenerator {
+    fn make_request_id<B>(&mut self, _request: &axum::http::Request<B>) -> Option<RequestId> {
+        let request_id = Uuid::now_v7().to_string();
+        HeaderValue::from_str(&request_id).ok().map(RequestId::from)
+    }
 }

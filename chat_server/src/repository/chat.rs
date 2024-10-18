@@ -1,8 +1,9 @@
 use crate::error::AppError;
-use sqlx::{PgPool, Row};
+use sqlx::{PgPool};
 use crate::models::{Chat, ChatType, User, UserId};
 
 pub struct ChatRepository {
+
     biz: String,
     pub(crate) pool: PgPool,
 }

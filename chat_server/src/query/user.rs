@@ -1,7 +1,6 @@
 use async_graphql::{ComplexObject, Context, InputObject, Object, SimpleObject};
 use jwt_simple::prelude::{Deserialize, Serialize};
 use anyhow::Result;
-use tracing::debug;
 use crate::app_state::AppState;
 use crate::error::{AppError};
 use crate::models::User;
