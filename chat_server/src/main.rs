@@ -32,11 +32,14 @@ use crate::error::AppError;
 use crate::handler::{init_api_router};
 use crate::middlewares::{RequestIdToResponseLayer};
 use crate::models::{Chat};
-use crate::query::ChatQuery;
+use crate::query::{ChatQuery, UserMutation};
 use crate::repository::{ChatRepository, UserRepository};
 
 #[derive(MergedObject, Default)]
 struct QueryRoot(DemoQuery, ChatQuery);
+
+#[derive(MergedObject, Default)]
+struct MutationRoot(UserMutation);
 
 #[derive(Default)]
 struct DemoQuery;
@@ -63,7 +66,7 @@ async fn main() -> Result<()> {
 
     let request_id_header = HeaderName::from_static("ichat-request-id");
 
-    let schema = Schema::build(QueryRoot::default(), EmptyMutation, EmptySubscription)
+    let schema = Schema::build(QueryRoot::default(), MutationRoot::default(), EmptySubscription)
         .data(state.clone()).finish();
 
     let app = init_api_router(state.clone()).await;

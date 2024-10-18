@@ -32,7 +32,9 @@ impl UserRepository {
     pub(crate) async fn send_email_code(&self, email: &str) -> Result<String, AppError> {
         // generate a random 6-digit code
         let code = rand::random::<u32>() % 1000000;
-        let code = code.to_string();
+        // pad it to 6 digits
+        let code = format!("{:06}", code);
+
         debug!("email code: {}", code);
 
         // save it in redis
