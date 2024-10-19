@@ -1,9 +1,8 @@
 use crate::error::AppError;
 use sqlx::{PgPool};
-use crate::models::{Chat, ChatType, User, UserId};
+use crate::models::{Chat, ChatType, Message, User, UserId};
 
 pub struct ChatRepository {
-
     biz: String,
     pub(crate) pool: PgPool,
 }
@@ -35,7 +34,7 @@ impl ChatRepository {
     pub(crate) async fn get_chat_by_id(&self, id: i64, user_id: UserId) -> Result<Chat, AppError> {
         let chat: Chat = sqlx::query_as(
             r#"
-            SELECT c.id, c.owner_id, c.type, c.created_at
+            SELECT c.id, c.name, c.owner_id, c.type, c.created_at
             FROM chats c
             JOIN chat_members cm ON c.id = cm.chat_id
             WHERE c.id = $1 AND cm.user_id = $2
@@ -52,7 +51,7 @@ impl ChatRepository {
     pub(crate) async fn get_all_chats(&self, user_id: UserId) -> Result<Vec<Chat>, AppError> {
         let chats: Vec<Chat> = sqlx::query_as(
             r#"
-            SELECT c.id, c.owner_id, c.type, c.created_at
+            SELECT c.id, c.name, c.owner_id, c.type, c.created_at
             FROM chats c
             JOIN chat_members cm ON c.id = cm.chat_id
             WHERE cm.user_id = $1
@@ -63,6 +62,23 @@ impl ChatRepository {
             .await?;
 
         Ok(chats)
+    }
+
+    pub(crate) async fn get_latest_message(&self, chat_id: i64) -> Result<Option<Message>, AppError> {
+        let message: Option<Message> = sqlx::query_as(
+            r#"
+            SELECT id, chat_id, user_id, type, content, created_at
+            FROM messages
+            WHERE chat_id = $1
+            ORDER BY created_at DESC
+            LIMIT 1
+            "#,
+        )
+            .bind(chat_id)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        Ok(message)
     }
 
     pub(crate) async fn create(

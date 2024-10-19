@@ -1,5 +1,5 @@
 use async_graphql::{Context, Object};
-
+use tracing::debug;
 use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::models::{Chat, UserId};
@@ -32,11 +32,13 @@ impl ChatQuery {
         let state = AppState::shared().await;
         let user_id = ctx.data::<UserId>().map_err(|_| AppError::GetGraphqlUserIdError)?;
 
+        println!("user_id: {:?}", user_id);
+
         let res = state.chat_repo.get_all_chats(*user_id).await;
 
         match res {
             Ok(chats) => Ok(chats),
-            Err(_) => Ok(vec![])
+            Err(e) => Err(e),
         }
     }
 }

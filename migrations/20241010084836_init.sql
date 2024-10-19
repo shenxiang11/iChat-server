@@ -30,11 +30,15 @@ CREATE TABLE IF NOT EXISTS chat_members (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- Create Message Type
+CREATE TYPE message_type AS ENUM ('text', 'image', 'video', 'audio', 'file');
+
 -- Create Message Table
 CREATE TABLE IF NOT EXISTS messages (
     id BIGSERIAL PRIMARY KEY,
     chat_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
+    type message_type NOT NULL,
     content TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
@@ -44,6 +48,6 @@ CREATE TABLE IF NOT EXISTS messages (
 
 -- Some initial data
 INSERT INTO "public"."users" ("id", "fullname", "email", "password_hash", "created_at") VALUES
-(1, '小李', '863461789@qq.com', '$argon2id$v=19$m=19456,t=2,p=1$VC5FyXCFoBj24OiecgkUPg$V7pR9gPHcxGka8AujfTudTdKn7UtlY6OJ52LmxStskI', '2024-10-16 11:49:39.417957+00'),
+(1, '小沈', '863461789@qq.com', '$argon2id$v=19$m=19456,t=2,p=1$VC5FyXCFoBj24OiecgkUPg$V7pR9gPHcxGka8AujfTudTdKn7UtlY6OJ52LmxStskI', '2024-10-16 11:49:39.417957+00'),
 (2, '小张', '863461710@qq.com', '$argon2id$v=19$m=19456,t=2,p=1$VC5FyXCFoBj24OiecgkUPg$V7pR9gPHcxGka8AujfTudTdKn7UtlY6OJ52LmxStskI', '2024-10-16 11:49:39.417957+00'),
 (3, '小李', '863461711@qq.com', '$argon2id$v=19$m=19456,t=2,p=1$VC5FyXCFoBj24OiecgkUPg$V7pR9gPHcxGka8AujfTudTdKn7UtlY6OJ52LmxStskI', '2024-10-16 11:49:39.417957+00');

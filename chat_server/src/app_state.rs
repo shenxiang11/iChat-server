@@ -5,7 +5,7 @@ use r2d2_redis::RedisConnectionManager;
 use sqlx::PgPool;
 use tokio::sync::OnceCell;
 use crate::config::AppConfig;
-use crate::repository::{ChatRepository, UserRepository};
+use crate::repository::{ChatRepository, MessageRepository, UserRepository};
 use crate::utils::{DecodingKey, EncodingKey};
 
 static ONCE: OnceCell<AppState> = OnceCell::const_new();
@@ -43,6 +43,7 @@ impl AppState {
                 config,
                 user_repo: UserRepository::new(pool.clone(), rdb_pool.clone()),
                 chat_repo: ChatRepository::new(pool.clone()),
+                message_repo: MessageRepository::new(pool.clone()),
                 pool,
                 rdb_pool,
                 dk,
@@ -66,6 +67,7 @@ pub(crate) struct AppStateInner {
     pub(crate) rdb_pool: Pool<RedisConnectionManager>,
     pub(crate) user_repo: UserRepository,
     pub(crate) chat_repo: ChatRepository,
+    pub(crate) message_repo: MessageRepository,
     pub(crate) dk: DecodingKey,
     pub(crate) ek: EncodingKey,
 }
