@@ -15,19 +15,25 @@ impl MessageRepository {
         }
     }
 
-    pub(crate) async fn get_messages(&self, chat_id: i64, user_id: UserId) -> Result<Vec<Message>, AppError> {
-        let messages: Vec<Message> = sqlx::query_as(
+    pub(crate) async fn get_messages(&self, chat_id: i64, user_id: UserId, cursor_id: Option<i64>) -> Result<Vec<Message>, AppError> {
+        let mut messages: Vec<Message> = sqlx::query_as(
             r#"
-            SELECT m.id, m.chat_id, m.user_id, m.content, m.created_at
+            SELECT m.id, m.chat_id, m.user_id, m.type, m.content, m.created_at
             FROM messages m
             JOIN chat_members cm ON m.chat_id = cm.chat_id
             WHERE m.chat_id = $1 AND cm.user_id = $2
+            AND m.id < $3
+            ORDER BY m.created_at DESC
+            LIMIT 5
             "#,
         )
             .bind(chat_id)
             .bind(user_id)
+            .bind(cursor_id.unwrap_or(i64::MAX))
             .fetch_all(&self.pool)
             .await?;
+
+        messages.reverse();
 
         Ok(messages)
     }

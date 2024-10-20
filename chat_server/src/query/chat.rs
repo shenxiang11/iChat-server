@@ -1,5 +1,5 @@
 use async_graphql::{Context, Object};
-use tracing::debug;
+
 use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::models::{Chat, UserId};
@@ -38,7 +38,7 @@ impl ChatQuery {
 
         match res {
             Ok(chats) => Ok(chats),
-            Err(e) => Err(e),
+            Err(_) => Ok(vec![])
         }
     }
 }

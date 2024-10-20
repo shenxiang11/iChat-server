@@ -35,15 +35,16 @@ CREATE TYPE message_type AS ENUM ('text', 'image', 'video', 'audio', 'file');
 
 -- Create Message Table
 CREATE TABLE IF NOT EXISTS messages (
-    id BIGSERIAL PRIMARY KEY,
+    id BIGSERIAL,
     chat_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
     type message_type NOT NULL,
     content TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (chat_id, id),
     FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
+) PARTITION BY LIST (chat_id);
 
 
 -- Some initial data

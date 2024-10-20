@@ -16,12 +16,13 @@ impl MessageQuery {
     async fn get_messages(
         &self,
         ctx: &Context<'_>,
-        chat_id: i64
+        chat_id: i64,
+        cursor_id: Option<i64>,
     ) -> Result<Vec<Message>, AppError> {
         let state = AppState::shared().await;
         let user_id = ctx.data::<UserId>().map_err(|_| AppError::GetGraphqlUserIdError)?;
 
-        let messages = state.message_repo.get_messages(chat_id, *user_id).await?;
+        let messages = state.message_repo.get_messages(chat_id, *user_id, cursor_id).await?;
 
         Ok(messages)
     }

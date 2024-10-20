@@ -34,7 +34,7 @@ impl ChatRepository {
     pub(crate) async fn get_chat_by_id(&self, id: i64, user_id: UserId) -> Result<Chat, AppError> {
         let chat: Chat = sqlx::query_as(
             r#"
-            SELECT c.id, c.name, c.owner_id, c.type, c.created_at
+            SELECT c.id, c.owner_id, c.type, c.created_at
             FROM chats c
             JOIN chat_members cm ON c.id = cm.chat_id
             WHERE c.id = $1 AND cm.user_id = $2
@@ -133,6 +133,25 @@ impl ChatRepository {
                     .await;
 
                     if let Err(e) = ret {
+                        tx.rollback().await?;
+                        return Err(AppError::SqlxError(e));
+                    }
+                }
+
+                // I want this table to be sorted to the end，so named start with zzz
+                let plain_sql = format!(
+                    r#"
+                    CREATE TABLE zzz_messages_chat_{}
+                    PARTITION OF messages FOR VALUES IN ({})
+                    "#,
+                    chat.id,
+                    chat.id
+                );
+                let ret = sqlx::query(plain_sql.as_str()).execute(&mut *tx).await;
+
+                match ret {
+                    Ok(_) => {},
+                    Err(e) => {
                         tx.rollback().await?;
                         return Err(AppError::SqlxError(e));
                     }
