@@ -1,5 +1,5 @@
 [package]
-name = "chat-server"
+name = "chat-notify"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,16 +8,11 @@ incremental = true
 
 [dependencies]
 anyhow = { workspace = true }
-argon2 = { version = "0.5.3", features = ["std"] }
 axum = { workspace = true }
 axum-extra = { workspace = true }
 chrono = { workspace = true }
 chat-core = { workspace = true }
 jwt-simple = { workspace = true }
-lettre = { version = "0.11.9", features = ["tokio1", "tokio1-native-tls"] }
-redis = "0.27.4"
-r2d2 = "0.8.10"
-r2d2_redis = "0.14.0"
 serde = { workspace = true }
 sqlx = { workspace = true }
 thiserror = { workspace = true }
@@ -27,12 +22,5 @@ tower = { workspace = true }
 tower-http = { workspace = true, features = ["request-id"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-uuid = { version = "1.10.0", features = ["v7", "serde"] }
-hyper = { version ="1.4.1" }
-serde_json = { version = "1.0.128" }
 async-graphql = { workspace = true }
 async-graphql-axum = { workspace = true }
-async-stream = "0.3.6"
-futures-timer = "3.0.3"
-tokio-stream = "0.1.16"
-log = "0.4.22"

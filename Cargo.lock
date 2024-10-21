@@ -572,6 +572,29 @@ name = "chat-core"
 version = "0.1.0"
 
 [[package]]
+name = "chat-notify"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-graphql",
+ "async-graphql-axum",
+ "axum",
+ "axum-extra",
+ "chat-core",
+ "chrono",
+ "jwt-simple",
+ "serde",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "toml",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "chat-server"
 version = "0.1.0"
 dependencies = [
@@ -579,13 +602,16 @@ dependencies = [
  "argon2",
  "async-graphql",
  "async-graphql-axum",
+ "async-stream",
  "axum",
  "axum-extra",
  "chat-core",
  "chrono",
+ "futures-timer",
  "hyper",
  "jwt-simple",
  "lettre",
+ "log",
  "r2d2",
  "r2d2_redis",
  "redis 0.27.4",
@@ -594,6 +620,7 @@ dependencies = [
  "sqlx",
  "thiserror",
  "tokio",
+ "tokio-stream",
  "toml",
  "tower",
  "tower-http",

@@ -115,6 +115,18 @@ impl UserRepository {
         Ok(user)
     }
 
+    pub(crate) async fn get_all_users(&self) -> Result<Vec<User>, AppError> {
+        let users: Vec<User> = sqlx::query_as(
+            r#"
+            SELECT id, fullname, email, created_at FROM users
+            "#,
+        )
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(users)
+    }
+
     pub(crate) async fn verify_password(&self, email: &str, password: &str) -> Result<User, AppError> {
         let user: Option<User> = sqlx::query_as(
             r#"

@@ -3,10 +3,28 @@ use jwt_simple::prelude::{Deserialize, Serialize};
 use anyhow::Result;
 use crate::app_state::AppState;
 use crate::error::{AppError};
-use crate::models::User;
+use crate::models::{User, UserId};
+
+#[derive(Default)]
+pub(crate) struct UserQuery;
 
 #[derive(Default)]
 pub(crate) struct UserMutation;
+
+#[Object]
+impl UserQuery {
+    async fn get_users(
+        &self,
+        ctx: &Context<'_>,
+    ) ->Result<Vec<User>, AppError> {
+        let _user_id = ctx.data::<UserId>().map_err(|_| AppError::GetGraphqlUserIdError)?;
+
+        let state = AppState::shared().await;
+        let users = state.user_repo.get_all_users().await?;
+
+        Ok(users)
+    }
+}
 
 #[Object]
 impl UserMutation {

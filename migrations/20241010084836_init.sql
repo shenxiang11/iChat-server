@@ -52,3 +52,22 @@ INSERT INTO "public"."users" ("id", "fullname", "email", "password_hash", "creat
 (1, '小沈', '863461789@qq.com', '$argon2id$v=19$m=19456,t=2,p=1$VC5FyXCFoBj24OiecgkUPg$V7pR9gPHcxGka8AujfTudTdKn7UtlY6OJ52LmxStskI', '2024-10-16 11:49:39.417957+00'),
 (2, '小张', '863461710@qq.com', '$argon2id$v=19$m=19456,t=2,p=1$VC5FyXCFoBj24OiecgkUPg$V7pR9gPHcxGka8AujfTudTdKn7UtlY6OJ52LmxStskI', '2024-10-16 11:49:39.417957+00'),
 (3, '小李', '863461711@qq.com', '$argon2id$v=19$m=19456,t=2,p=1$VC5FyXCFoBj24OiecgkUPg$V7pR9gPHcxGka8AujfTudTdKn7UtlY6OJ52LmxStskI', '2024-10-16 11:49:39.417957+00');
+
+
+-- if chat changed, notify with chat data
+CREATE OR REPLACE FUNCTION notify_chat_change()
+    RETURNS TRIGGER
+    AS $$
+BEGIN
+    RAISE NOTICE 'Chat changed: %', NEW;
+    PERFORM pg_notify('chat_change', json_build_object('op', TG_OP, 'old', OLD, 'new', NEW)::text);
+    RETURN NEW;
+END;
+    $$
+LANGUAGE plpgsql;
+
+CREATE TRIGGER chat_change_trigger
+    AFTER INSERT OR UPDATE OR DELETE
+    ON chats
+    FOR EACH ROW
+    EXECUTE FUNCTION notify_chat_change();

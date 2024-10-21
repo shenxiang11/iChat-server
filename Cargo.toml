@@ -1,5 +1,5 @@
 [workspace]
-members = ["chat_server", "chat_core"]
+members = ["chat_server", "chat_notify", "chat_core"]
 resolver = "2"
 
 [workspace.dependencies]
@@ -18,3 +18,5 @@ tower = "0.5.1"
 tower-http = { version = "0.6.1", features = ["compression-full", "cors", "fs", "trace"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+async-graphql = { version = "7.0.11", features = ["default", "chrono"] }
+async-graphql-axum = { version = "7.0.11" }

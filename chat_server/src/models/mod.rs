@@ -24,7 +24,7 @@ pub struct User {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd, sqlx::Type, Enum, Copy, Eq)]
 #[sqlx(type_name = "chat_type", rename_all = "snake_case")]
-#[serde(rename_all(serialize = "camelCase"))]
+#[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub enum ChatType {
     Private,
     Group,
@@ -32,7 +32,7 @@ pub enum ChatType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, PartialEq, SimpleObject)]
 #[graphql(complex)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
 pub struct Chat {
     pub(crate) id: i64,
     pub(crate) name: String,
