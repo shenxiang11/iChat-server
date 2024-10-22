@@ -7,7 +7,9 @@ use async_graphql::futures_util::Stream;
 use async_graphql::http::{
     playground_source, GraphQLPlaygroundConfig, GraphiQLSource, ALL_WEBSOCKET_PROTOCOLS,
 };
-use async_graphql::{ComplexObject, Context, Enum, Object, OutputType, Response, Schema, SimpleObject, Subscription, Union};
+use async_graphql::{
+    Context, Enum, Object, OutputType, Response, Schema, SimpleObject, Subscription, Union,
+};
 use async_graphql_axum::{
     GraphQLProtocol, GraphQLRequest, GraphQLResponse, GraphQLSubscription, GraphQLWebSocket,
 };
@@ -17,10 +19,10 @@ use axum::response::{Html, IntoResponse};
 use axum::routing::get;
 use axum::{response, Router};
 use serde::{Deserialize, Serialize};
+use sqlx::__rt::yield_now;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
-use sqlx::__rt::yield_now;
 use tokio::sync::broadcast;
 use tower_http::request_id::{MakeRequestId, PropagateRequestIdLayer, RequestId};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer};
@@ -42,10 +44,7 @@ pub struct SubscriptionRoot;
 
 #[Subscription]
 impl SubscriptionRoot {
-    async fn chat(
-        &self,
-        ctx: &Context<'_>,
-    ) -> Result<impl Stream<Item = AppEvent>, AppError> {
+    async fn chat<'a>(&self, ctx: &'a Context<'a>) -> Result<impl Stream<Item = AppEvent> + 'a, AppError> {
         let user_id = ctx
             .data::<UserId>()
             .map_err(|_| AppError::GetGraphqlUserIdError)?;
@@ -60,7 +59,28 @@ impl SubscriptionRoot {
                 let noti = rv.recv().await;
                 match noti {
                     Ok(noti) => {
-                        yield noti.event;
+                        let chat: Option<Chat> = None;
+                        let chat = match noti.event.clone() {
+                            AppEvent::CreatedChat(created_chat) => Some(created_chat.data),
+                            AppEvent::ChatOwnerChanged(chat_owner_changed) => Some(chat_owner_changed.data),
+                            AppEvent::ChatNameChanged(chat_name_changed) => Some(chat_name_changed.data),
+                            AppEvent::ChatDeleted(chat_deleted) => Some(chat_deleted.data),
+                        };
+
+                        if let Some(chat) = chat {
+                            let members = state.chat_repo.get_members(chat.id).await;
+                            match members {
+                                Ok(members) => {
+                                    let user_ids: HashSet<UserId> = members.iter().map(|u| u.id).collect();
+                                    if user_ids.contains(&user_id) {
+                                        yield noti.event;
+                                    }
+                                },
+                                Err(e) => {
+                                    debug!("Error: {:?}", e);
+                                }
+                            }
+                        }
                     },
                     Err(e) => {
                         debug!("Error: {:?}", e);
@@ -298,24 +318,20 @@ impl Notification {
                     return Err(AppError::NotificationError("Invalid operation".to_string()));
                 }
             },
-            "UPDATE" => {
-                match (payload.old, payload.new) {
-                    (Some(old), Some(new)) => {
-                        if old.owner_id != new.owner_id {
-                            AppEvent::ChatOwnerChanged(ChatOwnerChanged { data: new })
-                        } else if old.name != new.name {
-                            AppEvent::ChatNameChanged(ChatNameChanged { data: new })
-                        } else {
-                            return Err(AppError::NotificationError(
-                                "Invalid operation".to_string(),
-                            ));
-                        }
-                    }
-                    _ => {
+            "UPDATE" => match (payload.old, payload.new) {
+                (Some(old), Some(new)) => {
+                    if old.owner_id != new.owner_id {
+                        AppEvent::ChatOwnerChanged(ChatOwnerChanged { data: new })
+                    } else if old.name != new.name {
+                        AppEvent::ChatNameChanged(ChatNameChanged { data: new })
+                    } else {
                         return Err(AppError::NotificationError("Invalid operation".to_string()));
                     }
                 }
-            }
+                _ => {
+                    return Err(AppError::NotificationError("Invalid operation".to_string()));
+                }
+            },
             "DELETE" => match payload.old {
                 Some(old) => AppEvent::ChatDeleted(ChatDeleted { data: old }),
                 None => {
