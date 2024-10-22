@@ -1,4 +1,4 @@
-use async_graphql::{ComplexObject, Enum, SimpleObject};
+use async_graphql::{ComplexObject, Enum, InputObject, SimpleObject};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -30,7 +30,7 @@ pub enum ChatType {
     Group,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow, PartialEq, SimpleObject)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, PartialEq, SimpleObject, InputObject)]
 #[graphql(complex)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
 pub struct Chat {

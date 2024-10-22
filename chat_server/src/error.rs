@@ -46,6 +46,15 @@ pub(crate) enum AppError {
 
     #[error("Get graphql user id error")]
     GetGraphqlUserIdError,
+
+    #[error("Notification error: {0}")]
+    NotificationError(String),
+
+    #[error("SerdeJson error: {0}")]
+    SerdeJsonError(#[from] serde_json::Error),
+
+    #[error("Unauthorized")]
+    Unauthorized,
 }
 
 impl IntoResponse for AppError {
@@ -65,6 +74,9 @@ impl IntoResponse for AppError {
             Self::ChatError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::ChatNotFound => StatusCode::NOT_FOUND,
             Self::GetGraphqlUserIdError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::NotificationError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::SerdeJsonError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Unauthorized => StatusCode::UNAUTHORIZED,
         };
 
         (status, self.to_string()).into_response()
