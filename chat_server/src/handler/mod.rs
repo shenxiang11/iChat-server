@@ -4,9 +4,13 @@ use crate::middlewares::RequestIdToResponseLayer;
 use crate::models::{Chat, Message, User, UserId};
 use crate::query::{MutationRoot, QueryRoot};
 use async_graphql::futures_util::Stream;
-use async_graphql::http::{ALL_WEBSOCKET_PROTOCOLS, GraphiQLSource, GraphQLPlaygroundConfig, playground_source};
-use async_graphql::{Context, Enum, Object, OutputType, Response, Schema, SimpleObject, Subscription};
-use async_graphql_axum::{GraphQLProtocol, GraphQLRequest, GraphQLResponse, GraphQLSubscription, GraphQLWebSocket};
+use async_graphql::http::{
+    playground_source, GraphQLPlaygroundConfig, GraphiQLSource, ALL_WEBSOCKET_PROTOCOLS,
+};
+use async_graphql::{ComplexObject, Context, Enum, Object, OutputType, Response, Schema, SimpleObject, Subscription, Union};
+use async_graphql_axum::{
+    GraphQLProtocol, GraphQLRequest, GraphQLResponse, GraphQLSubscription, GraphQLWebSocket,
+};
 use axum::extract::{State, WebSocketUpgrade};
 use axum::http::{HeaderMap, HeaderName, HeaderValue};
 use axum::response::{Html, IntoResponse};
@@ -16,25 +20,36 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
+use sqlx::__rt::yield_now;
 use tokio::sync::broadcast;
 use tower_http::request_id::{MakeRequestId, PropagateRequestIdLayer, RequestId};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer};
 use tower_http::{request_id, LatencyUnit};
 use tracing::level_filters::LevelFilter;
 use tracing::{debug, info, Level};
-use tracing_subscriber::{fmt::Layer, layer::SubscriberExt, util::SubscriberInitExt, Layer as _};
 use tracing_subscriber::registry::Data;
+use tracing_subscriber::{fmt::Layer, layer::SubscriberExt, util::SubscriberInitExt, Layer as _};
 use uuid::Uuid;
+
+#[derive(Enum, Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
+pub enum MutationType {
+    Created,
+    Deleted,
+    Updated,
+}
 
 pub struct SubscriptionRoot;
 
 #[Subscription]
 impl SubscriptionRoot {
-    async fn chat_updated(
+    async fn chat(
         &self,
         ctx: &Context<'_>,
-    ) -> Result<impl Stream<Item = SubscriptionPayload<Chat>>, AppError> {
-        let user_id = ctx.data::<UserId>().map_err(|_| AppError::GetGraphqlUserIdError)?;
+    ) -> Result<impl Stream<Item = AppEvent>, AppError> {
+        let user_id = ctx
+            .data::<UserId>()
+            .map_err(|_| AppError::GetGraphqlUserIdError)?;
+        let state = AppState::shared().await;
 
         let mut rv = ctx
             .data_unchecked::<Arc<broadcast::Sender<Notification>>>()
@@ -45,26 +60,10 @@ impl SubscriptionRoot {
                 let noti = rv.recv().await;
                 match noti {
                     Ok(noti) => {
-                        let (event_name, chat) = match &*noti.event {
-                            AppEvent::NewChat(chat) => ("NewChat".to_string(), chat),
-                            AppEvent::ChatOwnerChanged(chat) => ("ChatOwnerChanged".to_string(), chat),
-                            AppEvent::ChatNameChanged(chat) => ("ChatNameChanged".to_string(), chat),
-                            AppEvent::ChatDeleted(chat) => ("ChatDeleted".to_string(), chat),
-                            _ => {
-                                continue;
-                            }
-                        };
-
-                        let subscription_payload = SubscriptionPayload {
-                            event: event_name,
-                            data: chat.to_owned(),
-                        };
-
-                        yield subscription_payload;
+                        yield noti.event;
                     },
                     Err(e) => {
                         debug!("Error: {:?}", e);
-                        continue;
                     }
                 }
             }
@@ -155,10 +154,8 @@ pub async fn get_user_id_from_bearer_token(str: Option<&str>) -> Option<UserId> 
             let user_id = state.dk.verify(token);
 
             match user_id {
-                Ok(user_id) => {
-                    Some(user_id)
-                }
-                Err(_) => None
+                Ok(user_id) => Some(user_id),
+                Err(_) => None,
             }
         } else {
             None
@@ -168,8 +165,12 @@ pub async fn get_user_id_from_bearer_token(str: Option<&str>) -> Option<UserId> 
     }
 }
 
-pub async fn handle_connect_init(value: serde_json::Value) -> async_graphql::Result<async_graphql::Data> {
-    let bearer_token_str = value.get("Authorization").map(|v| v.as_str().unwrap_or_default());
+pub async fn handle_connect_init(
+    value: serde_json::Value,
+) -> async_graphql::Result<async_graphql::Data> {
+    let bearer_token_str = value
+        .get("Authorization")
+        .map(|v| v.as_str().unwrap_or_default());
     debug!("Bearer token: {:?}", bearer_token_str);
 
     let user_id = get_user_id_from_bearer_token(bearer_token_str).await;
@@ -217,9 +218,37 @@ impl MakeRequestId for RequestIdGenerator {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Union, Clone)]
 #[serde(tag = "event")]
 pub enum AppEvent {
+    CreatedChat(CreatedChat),
+    ChatOwnerChanged(ChatOwnerChanged),
+    ChatNameChanged(ChatNameChanged),
+    ChatDeleted(ChatDeleted),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+struct CreatedChat {
+    data: Chat,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+struct ChatOwnerChanged {
+    data: Chat,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+struct ChatNameChanged {
+    data: Chat,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+struct ChatDeleted {
+    data: Chat,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum ChatEvent {
     NewChat(Chat),
     ChatOwnerChanged(Chat),
     ChatNameChanged(Chat),
@@ -228,7 +257,7 @@ pub enum AppEvent {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Notification {
-    event: Arc<AppEvent>,
+    event: AppEvent,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -243,7 +272,7 @@ struct SubscriptionPayload<T>
 where
     T: Serialize + Send + Sync + OutputType,
 {
-    event: String,
+    mutation_type: MutationType,
     data: T,
 }
 
@@ -259,12 +288,12 @@ impl Notification {
         Ok(Self { event })
     }
 
-    pub(crate) fn handle_chat_change(payload: &str) -> Result<Arc<AppEvent>, AppError> {
+    pub(crate) fn handle_chat_change(payload: &str) -> Result<AppEvent, AppError> {
         let payload: ChatUpdated = serde_json::from_str(payload)?;
 
         let event = match payload.op.as_str() {
             "INSERT" => match payload.new {
-                Some(new) => AppEvent::NewChat(new),
+                Some(new) => AppEvent::CreatedChat(CreatedChat { data: new }),
                 None => {
                     return Err(AppError::NotificationError("Invalid operation".to_string()));
                 }
@@ -273,9 +302,9 @@ impl Notification {
                 match (payload.old, payload.new) {
                     (Some(old), Some(new)) => {
                         if old.owner_id != new.owner_id {
-                            AppEvent::ChatOwnerChanged(new)
+                            AppEvent::ChatOwnerChanged(ChatOwnerChanged { data: new })
                         } else if old.name != new.name {
-                            AppEvent::ChatNameChanged(new)
+                            AppEvent::ChatNameChanged(ChatNameChanged { data: new })
                         } else {
                             return Err(AppError::NotificationError(
                                 "Invalid operation".to_string(),
@@ -286,10 +315,9 @@ impl Notification {
                         return Err(AppError::NotificationError("Invalid operation".to_string()));
                     }
                 }
-                // 群名称变更 或 群主变更
             }
             "DELETE" => match payload.old {
-                Some(old) => AppEvent::ChatDeleted(old),
+                Some(old) => AppEvent::ChatDeleted(ChatDeleted { data: old }),
                 None => {
                     return Err(AppError::NotificationError("Invalid operation".to_string()));
                 }
@@ -299,6 +327,6 @@ impl Notification {
             }
         };
 
-        Ok(Arc::new(event))
+        Ok(event)
     }
 }
