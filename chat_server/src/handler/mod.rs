@@ -2,7 +2,7 @@ use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middlewares::RequestIdToResponseLayer;
 use crate::models::{Chat, Message, User, UserId};
-use crate::query::{MutationRoot, QueryRoot};
+use crate::query::{QueryRoot};
 use async_graphql::futures_util::Stream;
 use async_graphql::http::{
     playground_source, GraphQLPlaygroundConfig, GraphiQLSource, ALL_WEBSOCKET_PROTOCOLS,
@@ -33,6 +33,7 @@ use tracing::{debug, info, Level};
 use tracing_subscriber::registry::Data;
 use tracing_subscriber::{fmt::Layer, layer::SubscriberExt, util::SubscriberInitExt, Layer as _};
 use uuid::Uuid;
+use crate::mutation::MutationRoot;
 
 #[derive(Enum, Eq, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum MutationType {

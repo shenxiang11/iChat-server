@@ -7,6 +7,7 @@ mod config;
 mod utils;
 mod middlewares;
 mod query;
+mod mutation;
 
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;

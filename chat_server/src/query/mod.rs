@@ -12,6 +12,3 @@ pub(crate) use file::*;
 
 #[derive(MergedObject, Default)]
 pub(crate) struct QueryRoot(UserQuery, ChatQuery, MessageQuery, FileQuery);
-
-#[derive(MergedObject, Default)]
-pub(crate) struct MutationRoot(UserMutation, ChatMutation, MessageMutation);
