@@ -8,6 +8,8 @@ mod utils;
 mod middlewares;
 mod query;
 mod mutation;
+mod subscription;
+mod notification;
 
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
@@ -20,9 +22,9 @@ use tokio::net::TcpListener;
 use tokio::sync::broadcast;
 use tower_http::request_id::{MakeRequestId, RequestId};
 use tracing::{error, info};
-use uuid::Uuid;
 use crate::config::AppConfig;
-use crate::handler::{init_graphql_router, Notification};
+use crate::handler::{init_graphql_router};
+use crate::notification::setup_pg_listener;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -38,36 +40,6 @@ async fn main() -> Result<()> {
     tokio::spawn(setup_pg_listener(sender.clone()));
 
     axum::serve(listener, app.into_make_service()).await?;
-
-    Ok(())
-}
-
-async fn setup_pg_listener(sender: Arc<broadcast::Sender<Notification>>) -> anyhow::Result<()> {
-    let config = AppConfig::shared().await;
-    let mut listener = PgListener::connect(config.server.postgres_url.as_str()).await?;
-
-    listener.listen("chat_change").await?;
-    listener.listen("new_message").await?;
-
-    let mut stream = listener.into_stream();
-
-    tokio::spawn(async move {
-        while let Some(Ok(notification)) = stream.next().await {
-            let noti = Notification::load(notification.channel(), notification.payload());
-
-            match noti {
-                Ok(noti) => {
-                    if sender.send(noti).is_err() {
-                        error!("Failed to send notification to channel");
-                    }
-                },
-                Err(e) => {
-                    error!("Failed to parse notification: {:?}", e);
-                    continue;
-                }
-            }
-        }
-    });
 
     Ok(())
 }
