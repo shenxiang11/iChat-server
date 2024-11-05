@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::time::Duration;
 use async_graphql::{Context, Subscription};
 use async_graphql::futures_util::Stream;
 use tokio::sync::broadcast;
@@ -15,10 +14,10 @@ pub struct SubscriptionRoot;
 #[Subscription]
 impl SubscriptionRoot {
     async fn all_messages<'a>(&self, ctx: &'a Context<'a>) -> Result<impl Stream<Item = AppEvent> + 'a, AppError> {
+        let state = ctx.data_unchecked::<AppState>();
         let user_id = ctx
             .data::<UserId>()
             .map_err(|_| AppError::GetGraphqlUserIdError)?;
-        let state = AppState::shared().await;
 
         let mut rv = ctx
             .data_unchecked::<Arc<broadcast::Sender<Notification>>>()
@@ -36,10 +35,10 @@ impl SubscriptionRoot {
                         };
 
                         if let Some(message) = message {
-                            let chat = message.get_chat().await;
+                            let chat = state.chat_repo.get_chat_by_id(message.chat_id, message.user_id).await;
 
                             if let Ok(chat) = chat {
-                                let members = chat.get_members().await;
+                                let members = state.chat_repo.get_members(chat.id).await;
 
                                 if let Ok(members) = members {
                                     let member_ids: HashSet<i64> = members.iter().map(|u| u.id).collect();
@@ -59,10 +58,10 @@ impl SubscriptionRoot {
     }
 
     async fn message<'a>(&self, ctx: &'a Context<'a>, chat_id: i64) -> Result<impl Stream<Item = AppEvent> + 'a, AppError> {
+        let state = ctx.data_unchecked::<AppState>();
         let user_id = ctx
             .data::<UserId>()
             .map_err(|_| AppError::GetGraphqlUserIdError)?;
-        let state = AppState::shared().await;
 
         let mut rv = ctx
             .data_unchecked::<Arc<broadcast::Sender<Notification>>>()
@@ -97,7 +96,7 @@ impl SubscriptionRoot {
         let user_id = ctx
             .data::<UserId>()
             .map_err(|_| AppError::GetGraphqlUserIdError)?;
-        let state = AppState::shared().await;
+        let state = ctx.data_unchecked::<AppState>();
 
         let mut rv = ctx
             .data_unchecked::<Arc<broadcast::Sender<Notification>>>()
@@ -127,18 +126,5 @@ impl SubscriptionRoot {
                 }
             }
         })
-    }
-
-    async fn interval2(&self, #[graphql(default = 1)] n: i32) -> impl Stream<Item = i32> {
-        let mut value = 0;
-        debug!("Init Stream value: {}", value);
-        async_stream::stream! {
-            loop {
-                futures_timer::Delay::new(Duration::from_secs(1)).await;
-                value += n;
-                debug!("Stream value: {}", value);
-                yield value;
-            }
-        }
     }
 }

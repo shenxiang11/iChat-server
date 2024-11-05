@@ -13,7 +13,7 @@ impl ChatMutation {
         ctx: &Context<'_>,
         id: i64
     ) -> Result<bool, AppError> {
-        let state = AppState::shared().await;
+        let state = ctx.data_unchecked::<AppState>();
         let user_id = ctx.data::<UserId>().map_err(|_| AppError::GetGraphqlUserIdError)?;
 
         let res = state.chat_repo.drop_chat(id, *user_id).await?;
@@ -26,7 +26,7 @@ impl ChatMutation {
         ctx: &Context<'_>,
         member_ids: Vec<UserId>
     ) -> Result<Chat, AppError> {
-        let state = AppState::shared().await;
+        let state = ctx.data_unchecked::<AppState>();
         let user_id = ctx.data::<UserId>().map_err(|_| AppError::GetGraphqlUserIdError)?;
 
         let chat = state.chat_repo.create(*user_id, member_ids, "".to_string()).await?;
@@ -39,7 +39,7 @@ impl ChatMutation {
         ctx: &Context<'_>,
         chat_id: i64
     ) -> Result<bool, AppError> {
-        let state = AppState::shared().await;
+        let state = ctx.data_unchecked::<AppState>();
         let user_id = ctx.data::<UserId>().map_err(|_| AppError::GetGraphqlUserIdError)?;
 
         let res = state.chat_repo.set_unread_count(chat_id, *user_id, 0).await?;

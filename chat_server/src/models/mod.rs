@@ -55,8 +55,8 @@ pub struct Chat {
 
 #[ComplexObject]
 impl Chat {
-    async fn original_9_users(&self) -> Result<Vec<User>, AppError> {
-        let state = AppState::shared().await;
+    async fn original_9_users(&self, ctx : &Context<'_>) -> Result<Vec<User>, AppError> {
+        let state = ctx.data_unchecked::<AppState>();
         let users = state.chat_repo.get_members(self.id).await?;
         let users = users.into_iter().take(9).collect();
 
@@ -71,8 +71,8 @@ impl Chat {
         Ok(self.owner_id == *user_id)
     }
 
-    async fn owner(&self) -> Result<User, AppError> {
-        let state = AppState::shared().await;
+    async fn owner(&self, ctx : &Context<'_>) -> Result<User, AppError> {
+        let state = ctx.data_unchecked::<AppState>();
         let user = state.user_repo.find_by_id(self.owner_id).await?;
 
         match user {
@@ -81,14 +81,16 @@ impl Chat {
         }
     }
 
-    async fn latest_message(&self) -> Result<Option<Message>, AppError> {
-        let state = AppState::shared().await;
+    async fn latest_message(&self, ctx : &Context<'_>) -> Result<Option<Message>, AppError> {
+        let state = ctx.data_unchecked::<AppState>();
         let message = state.chat_repo.get_latest_message(self.id).await?;
         Ok(message)
     }
 
-    async fn members(&self) -> Result<Vec<User>, AppError> {
-        self.get_members().await
+    async fn members(&self, ctx : &Context<'_>) -> Result<Vec<User>, AppError> {
+        let state = ctx.data_unchecked::<AppState>();
+        let users = state.chat_repo.get_members(self.id).await?;
+        Ok(users)
     }
 
     async fn unread_count(&self, ctx: &Context<'_>) -> Result<i32, AppError> {
@@ -96,17 +98,9 @@ impl Chat {
             .data::<UserId>()
             .map_err(|_| AppError::GetGraphqlUserIdError)?;
 
-        let state = AppState::shared().await;
+        let state = ctx.data_unchecked::<AppState>();
         let count = state.chat_repo.get_unread_count(self.id, *user_id).await?;
         Ok(count)
-    }
-}
-
-impl Chat {
-    pub(crate) async fn get_members(&self) -> Result<Vec<User>, AppError> {
-        let state = AppState::shared().await;
-        let users = state.chat_repo.get_members(self.id).await?;
-        Ok(users)
     }
 }
 
@@ -137,8 +131,8 @@ pub struct Message {
 
 #[ComplexObject]
 impl Message {
-    async fn user(&self) -> Result<User, AppError> {
-        let state = AppState::shared().await;
+    async fn user(&self, ctx: &Context<'_>) -> Result<User, AppError> {
+        let state = ctx.data_unchecked::<AppState>();
         let user = state.user_repo.find_by_id(self.user_id).await?;
 
         match user {
@@ -157,8 +151,8 @@ impl Message {
 }
 
 impl Message {
-    pub(crate) async fn get_chat(&self) -> Result<Chat, AppError> {
-        let state = AppState::shared().await;
+    pub(crate) async fn get_chat(&self, ctx: &Context<'_>) -> Result<Chat, AppError> {
+        let state = ctx.data_unchecked::<AppState>();
         let chat = state.chat_repo.get_chat_by_id(self.chat_id, self.user_id).await?;
 
         Ok(chat)

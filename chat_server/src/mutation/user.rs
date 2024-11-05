@@ -13,10 +13,10 @@ pub(crate) struct UserMutation;
 impl UserMutation {
     async fn signup(
         &self,
-        _ctx: &Context<'_>,
+        ctx: &Context<'_>,
         input: CreateUser
     ) -> anyhow::Result<User, AppError> {
-        let state = AppState::shared().await;
+        let state = ctx.data_unchecked::<AppState>();
 
         let is_code_correct = state.user_repo.verify_email_code(&input.email, &input.code).await?;
 
@@ -36,11 +36,11 @@ impl UserMutation {
 
     async fn signin(
         &self,
-        _ctx: &Context<'_>,
+        ctx: &Context<'_>,
         input: SigninUser
     ) -> anyhow::Result<AuthOutput, AppError> {
         let config = AppConfig::shared().await;
-        let state = AppState::shared().await;
+        let state = ctx.data_unchecked::<AppState>();
         let user = state.user_repo.verify_password(&input.email, &input.password).await;
 
         match user {
@@ -60,10 +60,10 @@ impl UserMutation {
 
     async fn send_email(
         &self,
-        _ctx: &Context<'_>,
+        ctx: &Context<'_>,
         input: SendEmail
     ) -> anyhow::Result<MessageOutput, AppError> {
-        let state = AppState::shared().await;
+        let state = ctx.data_unchecked::<AppState>();
         let _ = state.user_repo.send_email_code(&input.email).await?;
 
         Ok(MessageOutput {
@@ -107,8 +107,8 @@ struct MessageOutput {
 
 #[ComplexObject]
 impl AuthOutput {
-    async fn user(&self, _ctx: &Context<'_>) -> anyhow::Result<User, AppError> {
-        let state = AppState::shared().await;
+    async fn user(&self, ctx: &Context<'_>) -> anyhow::Result<User, AppError> {
+        let state = ctx.data_unchecked::<AppState>();
         let user = state.user_repo.find_by_id(self.user_id).await?;
 
         match user {

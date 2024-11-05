@@ -22,22 +22,22 @@ use tokio::net::TcpListener;
 use tokio::sync::broadcast;
 use tower_http::request_id::{MakeRequestId, RequestId};
 use tracing::{error, info};
+use crate::app_state::AppState;
 use crate::config::AppConfig;
 use crate::handler::{init_graphql_router};
 use crate::notification::setup_pg_listener;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let (sender, _) = broadcast::channel(16);
-    let sender = Arc::new(sender);
+    let app_state = AppState::new().await;
 
-    let app = init_graphql_router(sender.clone()).await;
+    let app = init_graphql_router(app_state.clone()).await;
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8080));
     let listener = TcpListener::bind(&address).await?;
     info!("Listening on {address}");
 
-    tokio::spawn(setup_pg_listener(sender.clone()));
+    tokio::spawn(setup_pg_listener(app_state.sender.clone()));
 
     axum::serve(listener, app.into_make_service()).await?;
 

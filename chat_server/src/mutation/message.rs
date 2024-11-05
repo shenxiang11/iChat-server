@@ -14,7 +14,7 @@ impl MessageMutation {
         ctx: &Context<'_>,
         input: CreateMessage
     ) -> anyhow::Result<Message, AppError> {
-        let state = AppState::shared().await;
+        let state = ctx.data_unchecked::<AppState>();
         let user_id = ctx.data::<UserId>().map_err(|_| AppError::GetGraphqlUserIdError)?;
 
         let message = state.message_repo.create_message(input.chat_id, *user_id, MessageType::Text, input.content).await?;

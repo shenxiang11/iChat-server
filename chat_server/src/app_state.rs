@@ -1,14 +1,17 @@
 use std::ops::Deref;
 use std::sync::Arc;
+use async_graphql::Schema;
 use r2d2::Pool;
 use r2d2_redis::RedisConnectionManager;
 use sqlx::PgPool;
-use tokio::sync::OnceCell;
+use tokio::sync::{broadcast};
 use crate::config::AppConfig;
+use crate::mutation::MutationRoot;
+use crate::notification::Notification;
+use crate::query::QueryRoot;
 use crate::repository::{ChatRepository, MessageRepository, UserRepository};
+use crate::subscription::SubscriptionRoot;
 use crate::utils::{DecodingKey, EncodingKey};
-
-static ONCE: OnceCell<AppState> = OnceCell::const_new();
 
 #[derive(Clone)]
 pub(crate) struct AppState {
@@ -16,12 +19,6 @@ pub(crate) struct AppState {
 }
 
 impl AppState {
-    pub(crate) async fn shared() -> &'static AppState {
-        ONCE.get_or_init(|| async {
-            AppState::new().await
-        }).await
-    }
-
     pub(crate) async fn new() -> Self {
         let config = AppConfig::shared().await;
 
@@ -38,6 +35,9 @@ impl AppState {
         let rdb_pool = Pool::builder().max_size(15).build(redis_manager)
             .expect("Failed to create redis pool");
 
+        let (sender, _) = broadcast::channel(16);
+        let sender = Arc::new(sender);
+
         Self {
             inner: Arc::new(AppStateInner {
                 config,
@@ -48,6 +48,7 @@ impl AppState {
                 rdb_pool,
                 dk,
                 ek,
+                sender,
             }),
         }
     }
@@ -70,4 +71,5 @@ pub(crate) struct AppStateInner {
     pub(crate) message_repo: MessageRepository,
     pub(crate) dk: DecodingKey,
     pub(crate) ek: EncodingKey,
+    pub(crate) sender: Arc<broadcast::Sender<Notification>>,
 }

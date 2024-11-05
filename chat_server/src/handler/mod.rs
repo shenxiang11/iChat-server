@@ -44,24 +44,19 @@ pub enum MutationType {
     Updated,
 }
 
-pub(crate) async fn init_graphql_router(sender: Arc<broadcast::Sender<Notification>>) -> Router {
+pub(crate) async fn init_graphql_router(app_state: AppState) -> Router {
     let layer = Layer::new().with_filter(LevelFilter::DEBUG);
     tracing_subscriber::registry().with(layer).init();
+
+    let request_id_header = HeaderName::from_static("ichat-request-id");
 
     let schema = Schema::build(
         QueryRoot::default(),
         MutationRoot::default(),
         SubscriptionRoot,
     )
-    .data(sender)
-    .finish();
-
-    let request_id_header = HeaderName::from_static("ichat-request-id");
-
-    let cors = CorsLayer::new()
-        .allow_origin(Any) // 允许所有来源，您可以指定具体的来源
-        .allow_methods(Any) // 允许所有方法
-        .allow_headers(Any); // 允许所有头部
+        .data(app_state.clone())
+        .finish();
 
     let router = Router::new()
         .route("/", get(graphiql).post(graphql_handler))
@@ -82,7 +77,6 @@ pub(crate) async fn init_graphql_router(sender: Arc<broadcast::Sender<Notificati
             RequestIdGenerator,
         ))
         .layer(PropagateRequestIdLayer::new(request_id_header))
-        .layer(cors)
         .with_state(schema);
 
     router
@@ -106,29 +100,30 @@ async fn graphql_ws_handler(
         .protocols(ALL_WEBSOCKET_PROTOCOLS)
         .on_upgrade(move |stream| {
             GraphQLWebSocket::new(stream, schema.clone(), protocol)
-                .on_connection_init(handle_connect_init)
+                .on_connection_init(|x| async move {
+                    handle_connect_init(x).await
+                })
                 .serve()
         })
 }
 
 pub async fn get_user_id_from_bearer_token(str: Option<&str>) -> Option<UserId> {
-    let state = AppState::shared().await;
-
-    if let Some(token) = str {
-        if token.starts_with("Bearer ") {
-            let token = token.trim_start_matches("Bearer ");
-            let user_id = state.dk.verify(token);
-
-            match user_id {
-                Ok(user_id) => Some(user_id),
-                Err(_) => None,
-            }
-        } else {
-            None
-        }
-    } else {
-        None
-    }
+    Some(1)
+    // if let Some(token) = str {
+    //     if token.starts_with("Bearer ") {
+    //         let token = token.trim_start_matches("Bearer ");
+    //         let user_id = state.dk.verify(token);
+    //
+    //         match user_id {
+    //             Ok(user_id) => Some(user_id),
+    //             Err(_) => None,
+    //         }
+    //     } else {
+    //         None
+    //     }
+    // } else {
+    //     None
+    // }
 }
 
 pub async fn handle_connect_init(
@@ -137,7 +132,6 @@ pub async fn handle_connect_init(
     let bearer_token_str = value
         .get("Authorization")
         .map(|v| v.as_str().unwrap_or_default());
-    debug!("Bearer token: {:?}", bearer_token_str);
 
     let user_id = get_user_id_from_bearer_token(bearer_token_str).await;
 

@@ -16,7 +16,7 @@ impl MessageQuery {
         chat_id: i64,
         cursor_id: Option<i64>,
     ) -> Result<Vec<Message>, AppError> {
-        let state = AppState::shared().await;
+        let state = ctx.data_unchecked::<AppState>();
         let user_id = ctx.data::<UserId>().map_err(|_| AppError::GetGraphqlUserIdError)?;
 
         let messages = state.message_repo.get_messages(chat_id, *user_id, cursor_id).await?;

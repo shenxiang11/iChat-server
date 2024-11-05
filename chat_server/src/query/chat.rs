@@ -14,7 +14,7 @@ impl ChatQuery {
         ctx: &Context<'_>,
         id: i64
     ) -> Result<Chat, AppError> {
-        let state = AppState::shared().await;
+        let state = ctx.data_unchecked::<AppState>();
         let user_id = ctx.data::<UserId>().map_err(|_| AppError::GetGraphqlUserIdError)?;
 
         let res = state.chat_repo.get_chat_by_id(id, *user_id).await;
@@ -26,7 +26,7 @@ impl ChatQuery {
     }
 
     async fn get_chats(&self, ctx: &Context<'_>) -> Result<Vec<Chat>, AppError> {
-        let state = AppState::shared().await;
+        let state = ctx.data_unchecked::<AppState>();
         let user_id = ctx.data::<UserId>().map_err(|_| AppError::GetGraphqlUserIdError)?;
 
         println!("user_id: {:?}", user_id);
