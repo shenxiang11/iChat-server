@@ -3,8 +3,6 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tokio::sync::OnceCell;
 
-static ONCE: OnceCell<AppConfig> = OnceCell::const_new();
-
 #[derive(Clone)]
 pub(crate) struct AppConfig {
     inner: Arc<AppConfigInner>,
@@ -40,12 +38,6 @@ pub(crate) struct JwtConfig {
 }
 
 impl AppConfig {
-    pub(crate) async fn shared() -> Self {
-        ONCE.get_or_init(|| async {
-            Self::load()
-        }).await.clone()
-    }
-
     pub(crate) fn load() -> Self {
         #[cfg(not(test))]
         let config_data = include_str!("../ichat.test.toml");

@@ -17,12 +17,13 @@ use axum::extract::{State, WebSocketUpgrade};
 use axum::http::{HeaderMap, HeaderName, HeaderValue};
 use axum::response::{Html, IntoResponse};
 use axum::routing::get;
-use axum::{response, Router};
+use axum::{Extension, response, Router};
 use serde::{Deserialize, Serialize};
 use sqlx::__rt::yield_now;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
+use axum::middleware::AddExtension;
 use tokio::sync::broadcast;
 use tower_http::request_id::{MakeRequestId, PropagateRequestIdLayer, RequestId};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer};
@@ -77,6 +78,7 @@ pub(crate) async fn init_graphql_router(app_state: AppState) -> Router {
             RequestIdGenerator,
         ))
         .layer(PropagateRequestIdLayer::new(request_id_header))
+        .layer(Extension(app_state.clone()))
         .with_state(schema);
 
     router
@@ -93,6 +95,7 @@ async fn graphiql() -> impl IntoResponse {
 
 async fn graphql_ws_handler(
     State(schema): State<Schema<QueryRoot, MutationRoot, SubscriptionRoot>>,
+    Extension(state): Extension<AppState>,
     protocol: GraphQLProtocol,
     websocket: WebSocketUpgrade,
 ) -> response::Response {
@@ -101,39 +104,39 @@ async fn graphql_ws_handler(
         .on_upgrade(move |stream| {
             GraphQLWebSocket::new(stream, schema.clone(), protocol)
                 .on_connection_init(|x| async move {
-                    handle_connect_init(x).await
+                    handle_connect_init(state.clone(), x).await
                 })
                 .serve()
         })
 }
 
-pub async fn get_user_id_from_bearer_token(str: Option<&str>) -> Option<UserId> {
-    Some(1)
-    // if let Some(token) = str {
-    //     if token.starts_with("Bearer ") {
-    //         let token = token.trim_start_matches("Bearer ");
-    //         let user_id = state.dk.verify(token);
-    //
-    //         match user_id {
-    //             Ok(user_id) => Some(user_id),
-    //             Err(_) => None,
-    //         }
-    //     } else {
-    //         None
-    //     }
-    // } else {
-    //     None
-    // }
+pub async fn get_user_id_from_bearer_token(state: AppState, str: Option<&str>) -> Option<UserId> {
+    if let Some(token) = str {
+        if token.starts_with("Bearer ") {
+            let token = token.trim_start_matches("Bearer ");
+            let user_id = state.dk.verify(token);
+
+            match user_id {
+                Ok(user_id) => Some(user_id),
+                Err(_) => None,
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    }
 }
 
 pub async fn handle_connect_init(
+    state: AppState,
     value: serde_json::Value,
 ) -> async_graphql::Result<async_graphql::Data> {
     let bearer_token_str = value
         .get("Authorization")
         .map(|v| v.as_str().unwrap_or_default());
 
-    let user_id = get_user_id_from_bearer_token(bearer_token_str).await;
+    let user_id = get_user_id_from_bearer_token(state.clone(), bearer_token_str).await;
 
     let mut data = async_graphql::Data::default();
 
@@ -147,6 +150,7 @@ pub async fn handle_connect_init(
 
 async fn graphql_handler(
     State(schema): State<Schema<QueryRoot, MutationRoot, SubscriptionRoot>>,
+    Extension(state): Extension<AppState>,
     headers: HeaderMap,
     req: GraphQLRequest,
 ) -> GraphQLResponse {
@@ -157,7 +161,7 @@ async fn graphql_handler(
         .map(|v| v.to_str().unwrap_or_default());
     debug!("Bearer token: {:?}", token);
 
-    let user_id = get_user_id_from_bearer_token(token).await;
+    let user_id = get_user_id_from_bearer_token(state.clone(), token).await;
 
     if let Some(user_id) = user_id {
         req = req.data::<UserId>(user_id);

@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
     let listener = TcpListener::bind(&address).await?;
     info!("Listening on {address}");
 
-    tokio::spawn(setup_pg_listener(app_state.sender.clone()));
+    tokio::spawn(setup_pg_listener(app_state.clone()));
 
     axum::serve(listener, app.into_make_service()).await?;
 

@@ -39,7 +39,8 @@ impl UserMutation {
         ctx: &Context<'_>,
         input: SigninUser
     ) -> anyhow::Result<AuthOutput, AppError> {
-        let config = AppConfig::shared().await;
+        let state = ctx.data_unchecked::<AppState>();
+        let config = &state.config;
         let state = ctx.data_unchecked::<AppState>();
         let user = state.user_repo.verify_password(&input.email, &input.password).await;
 

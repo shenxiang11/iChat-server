@@ -5,13 +5,14 @@ use sqlx::postgres::PgListener;
 use tokio::sync::broadcast;
 use tokio_stream::StreamExt;
 use tracing::error;
+use crate::app_state::AppState;
 use crate::config::AppConfig;
 use crate::error::AppError;
 use crate::handler::MutationType;
 use crate::models::{Chat, Message};
 
-pub(crate) async fn setup_pg_listener(sender: Arc<broadcast::Sender<Notification>>) -> anyhow::Result<()> {
-    let config = AppConfig::shared().await;
+pub(crate) async fn setup_pg_listener(state: AppState) -> anyhow::Result<()> {
+    let config = &state.config;;
     let mut listener = PgListener::connect(config.server.postgres_url.as_str()).await?;
 
     listener.listen("chat_change").await?;
@@ -25,7 +26,7 @@ pub(crate) async fn setup_pg_listener(sender: Arc<broadcast::Sender<Notification
 
             match noti {
                 Ok(noti) => {
-                    if sender.send(noti).is_err() {
+                    if state.sender.send(noti).is_err() {
                         error!("Failed to send notification to channel");
                     }
                 },

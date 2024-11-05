@@ -20,7 +20,7 @@ pub(crate) struct AppState {
 
 impl AppState {
     pub(crate) async fn new() -> Self {
-        let config = AppConfig::shared().await;
+        let config = AppConfig::load();
 
         let dk = DecodingKey::load(&config.jwt.pk).expect("Failed to load decoding key");
         let ek = EncodingKey::load(&config.jwt.sk).expect("Failed to load encoding key");
