@@ -1,9 +1,9 @@
+use async_graphql::{Error, ErrorExtensions};
 use axum::http::{Response, StatusCode};
 use axum::response::IntoResponse;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 pub(crate) enum AppError {
     #[error("email already exists: {0}")]
     EmailAlreadyExists(String),
@@ -80,6 +80,33 @@ impl IntoResponse for AppError {
         };
 
         (status, self.to_string()).into_response()
+    }
+}
+
+impl ErrorExtensions for AppError {
+    fn extend(&self) -> Error {
+        Error::new(format!("{}", self)).extend_with(|err, e|
+        match self {
+            AppError::EmailAlreadyExists(_) => {},
+            AppError::SqlxError(_) => {}
+            AppError::PasswordHashError(_) => {}
+            AppError::SmtpError(_) => {}
+            AppError::RedisError(_) => {}
+            AppError::R2D2Error(_) => {}
+            AppError::EmailCodeIncorrect => {}
+            AppError::PasswordError => {}
+            AppError::UserNotFound => {}
+            AppError::JwtSimpleErr(_) => {}
+            AppError::CreateChatError(_) => {}
+            AppError::ChatError(_) => {}
+            AppError::ChatNotFound => {}
+            AppError::GetGraphqlUserIdError => {
+                e.set("code", StatusCode::UNAUTHORIZED.as_u16())
+            }
+            AppError::NotificationError(_) => {}
+            AppError::SerdeJsonError(_) => {}
+            AppError::Unauthorized => {}
+        })
     }
 }
 

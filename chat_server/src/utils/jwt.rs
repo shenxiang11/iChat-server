@@ -17,8 +17,8 @@ impl EncodingKey {
         Ok(Self(Ed25519KeyPair::from_pem(pem)?))
     }
 
-    pub fn sign(&self, user_id: i64) -> Result<String, jwt_simple::Error> {
-        let claims = Claims::with_custom_claims(IdClaims { user_id }, Duration::from_secs(60 * 60 * 24 * 7));
+    pub fn sign(&self, user_id: i64, period_seconds: u64) -> Result<String, jwt_simple::Error> {
+        let claims = Claims::with_custom_claims(IdClaims { user_id }, Duration::from_secs(period_seconds));
         let claims = claims.with_issuer("ichat_server").with_audience("ichat_web");
 
         self.0.sign(claims)
@@ -34,6 +34,7 @@ impl DecodingKey {
         let opts = VerificationOptions {
             allowed_issuers: Some(["ichat_server".to_string()].into_iter().collect()),
             allowed_audiences: Some(["ichat_web".to_string()].into_iter().collect()),
+            time_tolerance: Some(Duration::from_secs(0)),
             ..Default::default()
         };
 

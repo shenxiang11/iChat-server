@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS users (
     fullname VARCHAR(64) NOT NULL,
     email VARCHAR(64) UNIQUE NOT NULL,
     password_hash VARCHAR(97) NOT NULL,
+    avatar VARCHAR(256),
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS chat_members (
     chat_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    unread_count INT DEFAULT 0,
     PRIMARY KEY (chat_id, user_id),
     FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -46,14 +48,6 @@ CREATE TABLE IF NOT EXISTS messages (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) PARTITION BY LIST (chat_id);
 
-
--- Some initial data
-INSERT INTO "public"."users" ("id", "fullname", "email", "password_hash", "created_at") VALUES
-(1, '小沈', '863461789@qq.com', '$argon2id$v=19$m=19456,t=2,p=1$VC5FyXCFoBj24OiecgkUPg$V7pR9gPHcxGka8AujfTudTdKn7UtlY6OJ52LmxStskI', '2024-10-16 11:49:39.417957+00'),
-(2, '小张', '863461710@qq.com', '$argon2id$v=19$m=19456,t=2,p=1$VC5FyXCFoBj24OiecgkUPg$V7pR9gPHcxGka8AujfTudTdKn7UtlY6OJ52LmxStskI', '2024-10-16 11:49:39.417957+00'),
-(3, '小李', '863461711@qq.com', '$argon2id$v=19$m=19456,t=2,p=1$VC5FyXCFoBj24OiecgkUPg$V7pR9gPHcxGka8AujfTudTdKn7UtlY6OJ52LmxStskI', '2024-10-16 11:49:39.417957+00');
-
-
 -- if chat changed, notify with chat data
 CREATE OR REPLACE FUNCTION notify_chat_change()
     RETURNS TRIGGER
@@ -71,3 +65,33 @@ CREATE TRIGGER chat_change_trigger
     ON chats
     FOR EACH ROW
     EXECUTE FUNCTION notify_chat_change();
+
+CREATE OR REPLACE FUNCTION increase_unread_count(chat_id BIGINT, user_id BIGINT)
+    RETURNS VOID
+    AS $$
+BEGIN
+    UPDATE chat_members AS t
+        SET t.unread_count = t.unread_count + 1
+        WHERE chat_id = t.chat_id AND user_id != t.user_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- if some user send a message, notify this message to all chat members
+CREATE OR REPLACE FUNCTION notify_message()
+    RETURNS TRIGGER
+    AS $$
+BEGIN
+    PERFORM increase_unread_count(NEW.chat_id, NEW.user_id);
+    PERFORM pg_notify('new_message', row_to_json(NEW)::text);
+    RETURN NEW;
+END;
+    $$
+LANGUAGE plpgsql;
+
+
+CREATE TRIGGER message_insert_trigger
+    AFTER INSERT
+    ON messages
+    FOR EACH ROW
+    EXECUTE FUNCTION notify_message();
+

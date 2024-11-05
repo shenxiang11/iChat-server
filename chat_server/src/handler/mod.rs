@@ -27,6 +27,7 @@ use tokio::sync::broadcast;
 use tower_http::request_id::{MakeRequestId, PropagateRequestIdLayer, RequestId};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer};
 use tower_http::{request_id, LatencyUnit};
+use tower_http::cors::{Any, CorsLayer};
 use tracing::level_filters::LevelFilter;
 use tracing::{debug, info, Level};
 use tracing_subscriber::registry::Data;
@@ -44,6 +45,85 @@ pub struct SubscriptionRoot;
 
 #[Subscription]
 impl SubscriptionRoot {
+    async fn all_messages<'a>(&self, ctx: &'a Context<'a>) -> Result<impl Stream<Item = AppEvent> + 'a, AppError> {
+        let user_id = ctx
+            .data::<UserId>()
+            .map_err(|_| AppError::GetGraphqlUserIdError)?;
+        let state = AppState::shared().await;
+
+        let mut rv = ctx
+            .data_unchecked::<Arc<broadcast::Sender<Notification>>>()
+            .subscribe();
+
+        Ok(async_stream::stream! {
+            loop {
+                let noti = rv.recv().await;
+                match noti {
+                    Ok(noti) => {
+                        let message: Option<Message> = None;
+                        let message = match noti.event.clone() {
+                            AppEvent::NewMessage(new_message) => Some(new_message),
+                            _ => None
+                        };
+
+                        if let Some(message) = message {
+                            let chat = message.get_chat().await;
+
+                            if let Ok(chat) = chat {
+                                let members = chat.get_members().await;
+
+                                if let Ok(members) = members {
+                                    let member_ids: HashSet<i64> = members.iter().map(|u| u.id).collect();
+                                    if member_ids.contains(&user_id) {
+                                        yield noti.event;
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        debug!("Error: {:?}", e);
+                    }
+                }
+            }
+        })
+    }
+
+    async fn message<'a>(&self, ctx: &'a Context<'a>, chat_id: i64) -> Result<impl Stream<Item = AppEvent> + 'a, AppError> {
+        let user_id = ctx
+            .data::<UserId>()
+            .map_err(|_| AppError::GetGraphqlUserIdError)?;
+        let state = AppState::shared().await;
+
+        let mut rv = ctx
+            .data_unchecked::<Arc<broadcast::Sender<Notification>>>()
+            .subscribe();
+
+        Ok(async_stream::stream! {
+            loop {
+                let noti = rv.recv().await;
+                match noti {
+                    Ok(noti) => {
+                        let message: Option<Message> = None;
+                        let message = match noti.event.clone() {
+                            AppEvent::NewMessage(new_message) => Some(new_message),
+                            _ => None
+                        };
+
+                        if let Some(message) = message {
+                            if message.chat_id == chat_id {
+                                yield noti.event;
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        debug!("Error: {:?}", e);
+                    }
+                }
+            }
+        })
+    }
+
     async fn chat<'a>(&self, ctx: &'a Context<'a>) -> Result<impl Stream<Item = AppEvent> + 'a, AppError> {
         let user_id = ctx
             .data::<UserId>()
@@ -65,21 +145,11 @@ impl SubscriptionRoot {
                             AppEvent::ChatOwnerChanged(chat_owner_changed) => Some(chat_owner_changed.data),
                             AppEvent::ChatNameChanged(chat_name_changed) => Some(chat_name_changed.data),
                             AppEvent::ChatDeleted(chat_deleted) => Some(chat_deleted.data),
+                            _ => None,
                         };
 
-                        if let Some(chat) = chat {
-                            let members = state.chat_repo.get_members(chat.id).await;
-                            match members {
-                                Ok(members) => {
-                                    let user_ids: HashSet<UserId> = members.iter().map(|u| u.id).collect();
-                                    if user_ids.contains(&user_id) {
-                                        yield noti.event;
-                                    }
-                                },
-                                Err(e) => {
-                                    debug!("Error: {:?}", e);
-                                }
-                            }
+                        if let Some(_) = chat {
+                            yield noti.event;
                         }
                     },
                     Err(e) => {
@@ -118,6 +188,11 @@ pub(crate) async fn init_graphql_router(sender: Arc<broadcast::Sender<Notificati
 
     let request_id_header = HeaderName::from_static("ichat-request-id");
 
+    let cors = CorsLayer::new()
+        .allow_origin(Any) // 允许所有来源，您可以指定具体的来源
+        .allow_methods(Any) // 允许所有方法
+        .allow_headers(Any); // 允许所有头部
+
     let router = Router::new()
         .route("/", get(graphiql).post(graphql_handler))
         .route("/ws", get(graphql_ws_handler))
@@ -137,6 +212,7 @@ pub(crate) async fn init_graphql_router(sender: Arc<broadcast::Sender<Notificati
             RequestIdGenerator,
         ))
         .layer(PropagateRequestIdLayer::new(request_id_header))
+        .layer(cors)
         .with_state(schema);
 
     router
@@ -215,6 +291,7 @@ async fn graphql_handler(
     let token = headers
         .get("Authorization")
         .map(|v| v.to_str().unwrap_or_default());
+    debug!("Bearer token: {:?}", token);
 
     let user_id = get_user_id_from_bearer_token(token).await;
 
@@ -245,6 +322,7 @@ pub enum AppEvent {
     ChatOwnerChanged(ChatOwnerChanged),
     ChatNameChanged(ChatNameChanged),
     ChatDeleted(ChatDeleted),
+    NewMessage(Message),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
@@ -265,14 +343,6 @@ struct ChatNameChanged {
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
 struct ChatDeleted {
     data: Chat,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum ChatEvent {
-    NewChat(Chat),
-    ChatOwnerChanged(Chat),
-    ChatNameChanged(Chat),
-    ChatDeleted(Chat),
 }
 
 #[derive(Debug, Clone)]
@@ -300,6 +370,7 @@ impl Notification {
     pub(crate) fn load(r#type: &str, payload: &str) -> Result<Self, AppError> {
         let event = match r#type {
             "chat_change" => Self::handle_chat_change(payload)?,
+            "new_message" => Self::handle_new_message(payload)?,
             _ => {
                 return Err(AppError::NotificationError("Invalid operation".to_string()));
             }
@@ -344,5 +415,11 @@ impl Notification {
         };
 
         Ok(event)
+    }
+
+    pub(crate) fn handle_new_message(payload: &str) -> Result<AppEvent, AppError> {
+        let message: Message = serde_json::from_str(payload)?;
+
+        Ok(AppEvent::NewMessage(message))
     }
 }

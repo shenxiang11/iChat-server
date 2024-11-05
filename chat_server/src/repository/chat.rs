@@ -1,5 +1,6 @@
+use log::debug;
 use crate::error::AppError;
-use sqlx::{PgPool};
+use sqlx::{Error, PgPool, ty_match};
 use crate::models::{Chat, ChatType, Message, User, UserId};
 
 pub struct ChatRepository {
@@ -15,10 +16,122 @@ impl ChatRepository {
         }
     }
 
+    pub(crate) async fn drop_chat(&self, chat_id: i64, user_id: UserId) -> Result<bool, AppError> {
+        let mut tx = self.pool.begin().await?;
+
+        let chat: Chat = sqlx::query_as(
+            r#"
+            SELECT id, name, type, owner_id, created_at
+            FROM chats
+            WHERE id = $1
+            "#,
+        )
+            .bind(chat_id)
+            .fetch_one(&mut *tx)
+            .await?;
+
+        let members: Vec<_> = sqlx::query_as::<_, (i64,)>(
+            r#"
+            SELECT user_id
+            FROM chat_members
+            WHERE chat_id = $1
+            "#,
+        )
+            .bind(chat_id)
+            .fetch_all(&mut *tx)
+            .await?
+            .into_iter()
+            .map(|(user_id,)| user_id)
+            .collect();
+
+        if chat.r#type == ChatType::Group && chat.owner_id != user_id {
+            return Err(AppError::ChatError("You are not the owner of group chat".to_string()));
+        } else if chat.r#type == ChatType::Private && !members.contains(&user_id) {
+            return Err(AppError::ChatError("You are not the member of private chat".to_string()));
+        }
+
+        let _ = match sqlx::query(
+            r#"
+            DELETE FROM chat_members
+            WHERE chat_id = $1
+            "#,
+        )
+            .bind(chat_id)
+            .execute(&mut *tx)
+            .await {
+            Ok(_) => {
+                debug!("success 1");
+            },
+            Err(e) => {
+                tx.rollback().await?;
+                return Err(AppError::SqlxError(e));
+            }
+        };
+
+        let sql = format!("ALTER TABLE messages DETACH PARTITION zzz_messages_chat_{};", chat_id);
+        let _ = match sqlx::query(&sql)
+            .execute(&mut *tx)
+            .await {
+            Ok(_) => {},
+            Err(e) => {
+                tx.rollback().await?;
+                return Err(AppError::SqlxError(e));
+            }
+        };
+
+        let sql = format!("DROP TABLE zzz_messages_chat_{};", chat_id);
+        let _ = match sqlx::query(&sql)
+            .execute(&mut *tx)
+            .await {
+            Ok(_) => {},
+            Err(e) => {
+                tx.rollback().await?;
+                return Err(AppError::SqlxError(e));
+            }
+        };
+
+        tx.commit().await?;
+
+        Ok(true)
+    }
+
+    pub(crate) async fn set_unread_count(&self, chat_id: i64, user_id: UserId, count: i64) -> Result<bool, AppError> {
+        let ret = sqlx::query(
+            r#"
+            UPDATE chat_members
+            SET unread_count = $3
+            WHERE chat_id = $1 AND user_id = $2
+            "#,
+        )
+            .bind(chat_id)
+            .bind(user_id)
+            .bind(count)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(ret.rows_affected() == 1)
+    }
+
+    pub(crate) async fn get_unread_count(&self, chat_id: i64, user_id: UserId) -> Result<i32, AppError> {
+        let count: (i32,) = sqlx::query_as(
+            r#"
+            SELECT unread_count
+            FROM chat_members
+            WHERE chat_id = $1 AND user_id = $2
+            "#,
+        )
+            .bind(chat_id)
+            .bind(user_id)
+            .fetch_one(&self.pool)
+            .await?;
+
+        Ok(count.0)
+    }
+
     pub(crate) async fn get_members(&self, chat_id: i64) -> Result<Vec<User>, AppError> {
         let users: Vec<User> = sqlx::query_as(
             r#"
-            SELECT u.id, u.fullname, u.email, u.created_at
+            SELECT u.id, u.fullname, u.email, u.avatar, u.created_at
             FROM users u
             JOIN chat_members cm ON u.id = cm.user_id
             WHERE cm.chat_id = $1
@@ -34,7 +147,7 @@ impl ChatRepository {
     pub(crate) async fn get_chat_by_id(&self, id: i64, user_id: UserId) -> Result<Chat, AppError> {
         let chat: Chat = sqlx::query_as(
             r#"
-            SELECT c.id, c.owner_id, c.type, c.created_at
+            SELECT c.id, c.name, c.owner_id, c.type, c.created_at
             FROM chats c
             JOIN chat_members cm ON c.id = cm.chat_id
             WHERE c.id = $1 AND cm.user_id = $2
@@ -85,7 +198,7 @@ impl ChatRepository {
         &self,
         owner_id: UserId,
         mut member_ids: Vec<UserId>,
-        name: String,
+        mut name: String,
     ) -> Result<Chat, AppError> {
         if !member_ids.contains(&owner_id) {
             member_ids.push(owner_id);
@@ -104,6 +217,32 @@ impl ChatRepository {
         };
 
         let mut tx = self.pool.begin().await?;
+
+        if name.len() == 0 && chat_type == ChatType::Group {
+            let query_member_ids: Vec<_> = member_ids.iter().take(3).collect();
+            let ret: Result<Vec<User>, _> = sqlx::query_as(
+                r#"
+            SELECT id, fullname, email, avatar, created_at
+            FROM users
+            WHERE id = ANY($1)
+            "#,
+            )
+                .bind(query_member_ids)
+                .fetch_all(&mut *tx)
+                .await;
+
+            match ret {
+                Ok(users) => {
+                    name = users.iter().map(|u| u.fullname.clone()).collect::<Vec<String>>().join(",");
+                    name = format!("{}等的群聊", name);
+                }
+                Err(err) => {
+                    tx.rollback().await?;
+                    return Err(AppError::CreateChatError("Can not to create without name".to_string()));
+                }
+            }
+        }
+
 
         let ret: Result<Chat, _> = sqlx::query_as(
             r#"

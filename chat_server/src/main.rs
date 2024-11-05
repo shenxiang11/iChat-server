@@ -46,6 +46,7 @@ async fn setup_pg_listener(sender: Arc<broadcast::Sender<Notification>>) -> anyh
     let mut listener = PgListener::connect(config.server.postgres_url.as_str()).await?;
 
     listener.listen("chat_change").await?;
+    listener.listen("new_message").await?;
 
     let mut stream = listener.into_stream();
 

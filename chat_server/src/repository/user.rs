@@ -80,7 +80,7 @@ impl UserRepository {
     pub(crate) async fn find_by_id(&self, id: UserId) -> Result<Option<User>, AppError> {
         let user: Option<User> = sqlx::query_as(
             r#"
-            SELECT id, fullname, email, created_at FROM users WHERE id = $1
+            SELECT id, fullname, email, avatar, created_at FROM users WHERE id = $1
             "#,
         )
             .bind(id)
@@ -118,7 +118,7 @@ impl UserRepository {
     pub(crate) async fn get_all_users(&self) -> Result<Vec<User>, AppError> {
         let users: Vec<User> = sqlx::query_as(
             r#"
-            SELECT id, fullname, email, created_at FROM users
+            SELECT id, fullname, email, avatar, created_at FROM users
             "#,
         )
             .fetch_all(&self.pool)
@@ -130,7 +130,7 @@ impl UserRepository {
     pub(crate) async fn verify_password(&self, email: &str, password: &str) -> Result<User, AppError> {
         let user: Option<User> = sqlx::query_as(
             r#"
-            SELECT id, fullname, email, password_hash, created_at FROM users WHERE email = $1
+            SELECT id, fullname, email, password_hash, avatar, created_at FROM users WHERE email = $1
             "#,
         )
             .bind(email)

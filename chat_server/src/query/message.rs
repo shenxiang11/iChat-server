@@ -1,4 +1,4 @@
-use async_graphql::{Context, InputObject, Object};
+use async_graphql::{Context, ErrorExtensions, InputObject, Object};
 use anyhow::Result;
 use jwt_simple::prelude::{Deserialize, Serialize};
 use crate::app_state::AppState;

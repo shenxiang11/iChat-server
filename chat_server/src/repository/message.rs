@@ -1,6 +1,6 @@
 use sqlx::PgPool;
 use crate::error::AppError;
-use crate::models::{Message, MessageType, UserId};
+use crate::models::{Chat, Message, MessageType, UserId};
 
 pub struct MessageRepository {
     biz: String,
@@ -24,7 +24,7 @@ impl MessageRepository {
             WHERE m.chat_id = $1 AND cm.user_id = $2
             AND m.id < $3
             ORDER BY m.created_at DESC
-            LIMIT 5
+            LIMIT 20
             "#,
         )
             .bind(chat_id)
@@ -39,6 +39,23 @@ impl MessageRepository {
     }
 
     pub(crate) async fn create_message(&self, chat_id: i64, user_id: UserId, r#type: MessageType, content: String) -> Result<Message, AppError> {
+        let chat: Option<Chat> = sqlx::query_as(
+            r#"
+            SELECT c.id, c.name, c.owner_id, c.type, c.created_at
+            FROM chats c
+            JOIN chat_members cm ON c.id = cm.chat_id
+            WHERE c.id = $1 AND cm.user_id = $2
+            "#,
+        )
+            .bind(chat_id)
+            .bind(user_id)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        if chat.is_none() {
+            return Err(AppError::ChatError("Cant not send message to chat".to_string()));
+        }
+
         let message: Message = sqlx::query_as(
             r#"
             INSERT INTO messages (chat_id, user_id, type, content)

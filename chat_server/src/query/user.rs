@@ -2,6 +2,7 @@ use async_graphql::{ComplexObject, Context, InputObject, Object, SimpleObject};
 use jwt_simple::prelude::{Deserialize, Serialize};
 use anyhow::Result;
 use crate::app_state::AppState;
+use crate::config::AppConfig;
 use crate::error::{AppError};
 use crate::models::{User, UserId};
 
@@ -23,6 +24,17 @@ impl UserQuery {
         let users = state.user_repo.get_all_users().await?;
 
         Ok(users)
+    }
+    async fn get_self(&self, ctx: &Context<'_>) -> Result<User, AppError> {
+        let user_id = ctx.data::<UserId>().map_err(|_| AppError::GetGraphqlUserIdError)?;
+
+        let state = AppState::shared().await;
+        let user = state.user_repo.find_by_id(*user_id).await?;
+
+        match user {
+            None => return Err(AppError::GetGraphqlUserIdError),
+            Some(u) => return Ok(u)
+        }
     }
 }
 
@@ -56,12 +68,13 @@ impl UserMutation {
         _ctx: &Context<'_>,
         input: SigninUser
     ) -> Result<AuthOutput, AppError> {
+        let config = AppConfig::shared().await;
         let state = AppState::shared().await;
         let user = state.user_repo.verify_password(&input.email, &input.password).await;
 
         match user {
             Ok(u) => {
-                let token = state.ek.sign(u.id)?;
+                let token = state.ek.sign(u.id, config.jwt.period_seconds)?;
 
                 Ok(AuthOutput {
                     token,

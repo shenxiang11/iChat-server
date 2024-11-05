@@ -36,6 +36,7 @@ pub(crate) struct ServerConfig {
 pub(crate) struct JwtConfig {
     pub(crate) pk: String,
     pub(crate) sk: String,
+    pub(crate) period_seconds: u64,
 }
 
 impl AppConfig {
