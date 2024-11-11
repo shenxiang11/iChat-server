@@ -8,6 +8,18 @@ pub(crate) struct ChatMutation;
 
 #[Object]
 impl ChatMutation {
+    async fn update_chat_name(
+        &self,
+        ctx: &Context<'_>,
+        chat_id: i64,
+        name: String,
+    ) -> Result<bool, AppError> {
+        let state = ctx.data_unchecked::<AppState>();
+        let user_id = ctx.data::<UserId>().map_err(|_| AppError::GetGraphqlUserIdError)?;
+
+        state.chat_repo.update_chat_name(name, chat_id, *user_id).await
+    }
+
     async fn drop_chat(
         &self,
         ctx: &Context<'_>,

@@ -1,6 +1,7 @@
 use log::debug;
 use crate::error::AppError;
-use sqlx::{Error, PgPool, ty_match};
+use sqlx::{PgPool};
+use tracing::field::debug;
 use crate::models::{Chat, ChatType, Message, User, UserId};
 
 pub struct ChatRepository {
@@ -194,6 +195,29 @@ impl ChatRepository {
         Ok(message)
     }
 
+    pub(crate) async fn update_chat_name(
+        &self,
+        name: String,
+        chat_id: i64,
+        owner_id: UserId,
+    ) -> Result<bool, AppError> {
+        let ret = sqlx::query(
+            r#"
+            UPDATE chats
+            SET name = $1
+            WHERE id = $2 AND owner_id = $3
+            RETURNING id
+            "#
+        )
+            .bind(name)
+            .bind(chat_id)
+            .bind(owner_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(ret.rows_affected() == 1)
+    }
+
     pub(crate) async fn create(
         &self,
         owner_id: UserId,
@@ -240,6 +264,37 @@ impl ChatRepository {
                     tx.rollback().await?;
                     return Err(AppError::CreateChatError("Can not to create without name".to_string()));
                 }
+            }
+        }
+
+        if chat_type == ChatType::Private {
+            let mut another_user_id = owner_id;
+            for member_id in member_ids.clone() {
+                if member_id != another_user_id {
+                    another_user_id = member_id;
+                    break;
+                }
+            }
+
+            let ret: Result<Chat, _> = sqlx::query_as(
+                r#"
+                SELECT c.id, c.owner_id, c."type", c.name, c.created_at
+                FROM chats c
+                JOIN chat_members cm
+                ON cm.chat_id = c.id
+                WHERE c."type" = 'private' AND (c.owner_id = $1 OR c.owner_id = $2) AND cm.user_id = $2
+                "#,
+            )
+                .bind(owner_id)
+                .bind(another_user_id)
+                .fetch_one(&mut *tx)
+                .await;
+
+            debug!("ret: {:?}", ret);
+
+            if let Ok(chat) = ret {
+                tx.commit().await?;
+                return Ok(chat);
             }
         }
 

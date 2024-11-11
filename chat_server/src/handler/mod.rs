@@ -1,7 +1,7 @@
 use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middlewares::RequestIdToResponseLayer;
-use crate::models::{Chat, Message, User, UserId};
+use crate::models::{Message, User, UserId};
 use crate::query::{QueryRoot};
 use async_graphql::futures_util::Stream;
 use async_graphql::http::{
@@ -144,7 +144,7 @@ pub async fn handle_connect_init(
         data.insert(user_id);
         Ok(data)
     } else {
-        Err(AppError::Unauthorized.into())
+        Ok(data)
     }
 }
 

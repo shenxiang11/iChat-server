@@ -1,9 +1,11 @@
 use async_graphql::{ComplexObject, Context, InputObject, Object, SimpleObject};
 use jwt_simple::prelude::{Deserialize, Serialize};
+use tracing_subscriber::filter::combinator::Not;
 use crate::app_state::AppState;
 use crate::config::AppConfig;
 use crate::error::AppError;
-use crate::models::User;
+use crate::models::{User, UserId};
+use crate::notification::{AppEvent, Notification, QRCodeCancel, QRCodeConfirmed, QRCodeScanned};
 
 #[derive(Default)]
 pub(crate) struct UserMutation;
@@ -34,14 +36,64 @@ impl UserMutation {
         Ok(user)
     }
 
+    async fn cancel_scanned(&self, ctx: &Context<'_>, device_uuid: String) -> anyhow::Result<bool, AppError> {
+        let state = ctx.data_unchecked::<AppState>();
+        let _ = ctx.data::<UserId>().map_err(|_| AppError::GetGraphqlUserIdError)?;
+
+        let event = AppEvent::QRCodeCancel(QRCodeCancel {
+            device_uuid,
+        });
+
+        let ret = state.sender.send(Notification{ event });
+
+        match ret {
+            Err(_) => Ok(false),
+            Ok(_) => Ok(true),
+        }
+    }
+
+    async fn scanned(&self, ctx: &Context<'_>, device_uuid: String) -> anyhow::Result<bool, AppError> {
+        let state = ctx.data_unchecked::<AppState>();
+        let _ = ctx.data::<UserId>().map_err(|_| AppError::GetGraphqlUserIdError)?;
+
+        let event = AppEvent::QRCodeScanned(QRCodeScanned {
+            device_uuid,
+        });
+
+        let ret = state.sender.send(Notification{ event });
+
+        match ret {
+            Err(_) => Ok(false),
+            Ok(_) => Ok(true),
+        }
+    }
+
+    async fn scan_signin(&self, ctx: &Context<'_>, device_uuid: String) -> anyhow::Result<bool, AppError> {
+        let state = ctx.data_unchecked::<AppState>();
+        let user_id = ctx.data::<UserId>().map_err(|_| AppError::GetGraphqlUserIdError)?;
+
+        let token = state.ek.sign(*user_id, state.config.jwt.period_seconds)?;
+
+        let event = AppEvent::QRCodeConfirmed(QRCodeConfirmed {
+            device_uuid,
+            token,
+        });
+
+        let ret = state.sender.send(Notification{ event });
+
+        match ret {
+            Err(_) => Ok(false),
+            Ok(_) => Ok(true),
+        }
+    }
+
     async fn signin(
         &self,
         ctx: &Context<'_>,
-        input: SigninUser
+        input: SigninUser,
     ) -> anyhow::Result<AuthOutput, AppError> {
         let state = ctx.data_unchecked::<AppState>();
         let config = &state.config;
-        let state = ctx.data_unchecked::<AppState>();
         let user = state.user_repo.verify_password(&input.email, &input.password).await;
 
         match user {

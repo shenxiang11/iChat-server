@@ -13,15 +13,52 @@ pub struct SubscriptionRoot;
 
 #[Subscription]
 impl SubscriptionRoot {
+    async fn scan_login(&self, ctx: &Context<'_>, device_uuid: String) -> Result<impl Stream<Item = AppEvent>, AppError> {
+        let state = ctx.data_unchecked::<AppState>();
+
+        let mut rv = state.sender.subscribe();
+
+        Ok(async_stream::stream! {
+            loop {
+                let noti = rv.recv().await;
+                match noti {
+                    Ok(noti) => {
+                        match noti.event.clone() {
+                            AppEvent::QRCodeConfirmed(payload) => {
+                                if payload.device_uuid == device_uuid {
+                                    yield noti.event;
+                                    break;
+                                }
+                            },
+                            AppEvent::QRCodeScanned(payload) => {
+                                if payload.device_uuid == device_uuid {
+                                    yield noti.event;
+                                }
+                            },
+                            AppEvent::QRCodeCancel(payload) => {
+                                if payload.device_uuid == device_uuid {
+                                    yield noti.event;
+                                    break;
+                                }
+                            },
+                            _ => {}
+                        };
+                    },
+                    Err(e) => {
+                        debug!("Error: {:?}", e);
+                    }
+                }
+            }
+        })
+    }
+
     async fn all_messages<'a>(&self, ctx: &'a Context<'a>) -> Result<impl Stream<Item = AppEvent> + 'a, AppError> {
         let state = ctx.data_unchecked::<AppState>();
         let user_id = ctx
             .data::<UserId>()
             .map_err(|_| AppError::GetGraphqlUserIdError)?;
 
-        let mut rv = ctx
-            .data_unchecked::<Arc<broadcast::Sender<Notification>>>()
-            .subscribe();
+        let mut rv = state.sender.subscribe();
 
         Ok(async_stream::stream! {
             loop {
@@ -63,9 +100,7 @@ impl SubscriptionRoot {
             .data::<UserId>()
             .map_err(|_| AppError::GetGraphqlUserIdError)?;
 
-        let mut rv = ctx
-            .data_unchecked::<Arc<broadcast::Sender<Notification>>>()
-            .subscribe();
+        let mut rv = state.sender.subscribe();
 
         Ok(async_stream::stream! {
             loop {
@@ -98,9 +133,7 @@ impl SubscriptionRoot {
             .map_err(|_| AppError::GetGraphqlUserIdError)?;
         let state = ctx.data_unchecked::<AppState>();
 
-        let mut rv = ctx
-            .data_unchecked::<Arc<broadcast::Sender<Notification>>>()
-            .subscribe();
+        let mut rv = state.sender.subscribe();
 
         Ok(async_stream::stream! {
             loop {

@@ -49,6 +49,25 @@ pub(crate) enum AppEvent {
     ChatNameChanged(ChatNameChanged),
     ChatDeleted(ChatDeleted),
     NewMessage(Message),
+    QRCodeScanned(QRCodeScanned),
+    QRCodeCancel(QRCodeCancel),
+    QRCodeConfirmed(QRCodeConfirmed),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+pub(crate) struct QRCodeScanned {
+    pub(crate) device_uuid: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+pub(crate) struct QRCodeCancel {
+    pub(crate) device_uuid: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+pub(crate) struct QRCodeConfirmed {
+    pub(crate) device_uuid: String,
+    pub(crate) token: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
